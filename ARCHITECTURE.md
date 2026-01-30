@@ -10,6 +10,7 @@ This document defines the technical architecture for embedding the OpenClaw agen
 |-------|------------|---------|
 | **UI** | Kotlin + Jetpack Compose | User interface, chat rendering, voice input. |
 | **Bridge** | JNI / WebSocket (Localhost) | Communication channel between Android JVM and Node.js. |
+| **Protocol** | **MCP (Model Context Protocol)** | Standard for connecting the Agent to Tools (Jules, Context7, Stitch). |
 | **Runtime** | Node.js (v22+ arm64) | The execution environment for OpenClaw. |
 | **Agent** | OpenClaw Core | The logic brain (tools, planning, execution). |
 | **LLM** | Ollama (Android Native) | The inference engine (Gemma 3 4B on TPU). |
@@ -23,19 +24,20 @@ graph TD
     subgraph "Android APK Process"
         UI -- Intent/IPC --> Service[Amphibian Background Service]
         
-        subgraph "Embedded Node Environment"
+        subgraph "Embedded Node Environment (MCP Host)"
             Service -- Spawns --> NodeBin[Node.js Binary]
-            NodeBin --> OpenClaw[OpenClaw Runtime]
+            NodeBin --> MCPHost[MCP Host / Bridge]
+            
+            MCPHost -- MCP StdIO --> Jules[Google Jules (MCP)]
+            MCPHost -- MCP StdIO --> Context7[Context7 (MCP)]
+            MCPHost -- MCP StdIO --> Stitch[Google Stitch (MCP)]
+            MCPHost -- Internal --> LocalTools[Android Local Tools]
         end
         
         subgraph "Inference"
-            OpenClaw -- HTTP --> Ollama[Ollama Server]
+            MCPHost -- HTTP --> Ollama[Ollama Server]
         end
     end
-    
-    OpenClaw --> Tools[System Tools]
-    Tools --> Files[FileSystem]
-    Tools --> Net[Network]
 ```
 
 ## 3. Implementation Details
