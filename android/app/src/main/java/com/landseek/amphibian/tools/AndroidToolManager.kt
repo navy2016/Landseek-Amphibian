@@ -21,6 +21,8 @@ class AndroidToolManager(private val context: Context) {
 
     data class ToolResult(val success: Boolean, val output: String)
 
+    private val llmService = com.landseek.amphibian.service.LocalLLMService(context)
+
     fun executeTool(name: String, args: JSONObject): ToolResult {
         return try {
             when (name) {
@@ -30,6 +32,7 @@ class AndroidToolManager(private val context: Context) {
                 "write_file" -> writeFile(args.getString("path"), args.getString("content"))
                 "get_location" -> getLocation()
                 "open_url" -> openUrl(args.getString("url"))
+                "local_inference" -> runInference(args.getString("prompt"))
                 else -> ToolResult(false, "Unknown tool: $name")
             }
         } catch (e: Exception) {
@@ -37,8 +40,18 @@ class AndroidToolManager(private val context: Context) {
             ToolResult(false, "Error: ${e.message}")
         }
     }
+    
+    // ... existing methods ...
 
-    private fun sendSMS(phone: String, message: String): ToolResult {
+    private fun runInference(prompt: String): ToolResult {
+        // This is a blocking call in this simple architecture
+        // Ideally handled via async/callback, but for MVP:
+        val response = kotlinx.coroutines.runBlocking { 
+            llmService.generate(prompt) 
+        }
+        return ToolResult(true, response)
+    }
+}
         // Permission check handled by caller/activity before invoking this
         return try {
             val smsManager = context.getSystemService(SmsManager::class.java)
