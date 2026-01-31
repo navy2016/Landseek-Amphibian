@@ -523,6 +523,121 @@ Connect devices across the internet, not just local networks. Any internet-conne
    Connect: ws://your-server.com:8770
 ```
 
+## 🛡️ Humanity Guardian
+
+The Humanity Guardian is a consensus-based protection system that enables the computation swarm to actively protect users and society from harmful actors.
+
+### Core Principles
+
+1. **Protect human life** and well-being above all else
+2. **Act only with consensus** - never unilaterally
+3. **Use minimum force** necessary
+4. **Maintain transparency** with full audit trails
+5. **Preserve human oversight** and control
+6. **Respect privacy** and civil liberties
+7. **Act within legal** and ethical boundaries
+8. **Prevent harm** - do not seek revenge
+9. **Protect the vulnerable** and innocent
+10. **Work with authorities**, not against them
+
+### Threat Types Monitored
+
+| Category | Examples |
+|----------|----------|
+| **Malware** | Viruses, ransomware, trojans, botnets |
+| **Fraud** | Phishing, financial scams, identity theft |
+| **Exploitation** | Child abuse, human trafficking |
+| **Infrastructure** | DDoS, critical system attacks |
+| **Harassment** | Coordinated harassment networks |
+| **Disinformation** | Large-scale disinformation campaigns |
+
+### Protective Actions
+
+Actions require consensus from multiple Guardian reviewers:
+
+| Action | Consensus Required | Human Approval |
+|--------|-------------------|----------------|
+| `monitor` | 50% (3 reviewers) | No |
+| `document` | 50% (3 reviewers) | No |
+| `alert_users` | 67% (5 reviewers) | No |
+| `alert_authorities` | 75% (7 reviewers) | No |
+| `block_access` | 75% (7 reviewers) | No |
+| `quarantine` | 80% (9 reviewers) | No |
+| `deploy_countermeasures` | 85% (11 reviewers) | **Yes** |
+| `neutralize_threat` | 90% (15 reviewers) | **Yes** |
+| `assimilate_infrastructure` | 95% (21 reviewers) | **Yes** |
+
+### Guardian Commands
+
+| Command | Description |
+|---------|-------------|
+| `/guardian` | Show Guardian principles and status |
+| `/reportthreat <type> <target> [desc]` | Report a threat |
+| `/threats` | View active threats |
+| `/threat <id>` | Get threat details |
+| `/protect <threat_id> <action>` | Request protective action |
+| `/approveaction <approval_id>` | Approve pending action |
+| `/pendingactions` | View pending approvals |
+| `/guardianlog [limit]` | View action log |
+| `/guardianstats` | View statistics |
+| `/addevidence <threat_id> <type> <desc>` | Add evidence |
+
+### Reporting a Threat
+
+```bash
+# Report a phishing campaign
+/reportthreat phishing evil-phishing-site.com Stealing user credentials
+
+# Output:
+🚨 Threat reported to Humanity Guardian Council
+   ID: threat_abc123
+   Type: phishing_campaign
+   Status: pending
+   Assessment: Reviewing with 11 Guardian reviewers...
+
+# Later...
+✅ Threat verified (9/11 reviewers agree)
+   Severity: HIGH
+   Recommended actions: alert_users, alert_authorities, block_access
+```
+
+### How Consensus Works
+
+1. **Threat is reported** with evidence
+2. **11 Guardian reviewers** independently assess:
+   - Safety Guardian (strict)
+   - Security Expert
+   - Legal Advisor
+   - Ethics Reviewer
+   - Privacy Advocate
+   - Technical Analyst
+   - Impact Assessor
+   - Proportionality Checker
+   - Evidence Verifier
+   - Humanity Advocate
+   - Oversight Monitor
+3. **Each reviewer votes** with reasoning
+4. **Consensus determines action**:
+   - 67%+ verify = Threat confirmed
+   - Action-specific thresholds apply
+5. **Human approval required** for aggressive actions
+6. **All actions logged** in immutable audit trail
+
+### Safeguards
+
+The Guardian has strict constraints:
+
+- ❌ Never target individuals without verified evidence
+- ❌ Never act based on politics, religion, or ideology
+- ❌ Never violate human rights
+- ❌ Never cause collateral harm to innocents
+- ❌ Never act in secret
+- ❌ Never exceed proportionate response
+- ✅ Always offer path to redemption
+- ✅ Always preserve evidence for authorities
+- ✅ Always allow human override
+- ✅ Always prefer education over punishment
+
 ## 🏠 Universal Device Host
 
 Turn **any device** into a distributed processing host for ClawBots. Supports a wide range of devices:

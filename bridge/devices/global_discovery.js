@@ -196,10 +196,14 @@ class GlobalDiscoveryClient {
             }, this.config.connectionTimeout);
             
             try {
-                // For development/testing, allow insecure connections
-                const ws = new WebSocket(server.url, {
-                    rejectUnauthorized: false // Only for development
-                });
+                // Build WebSocket options - always use secure connections
+                // For local development, use ws:// URLs or set up proper certificates
+                const wsOptions = {
+                    // Always validate certificates in production
+                    // For local development, use ws:// instead of wss://
+                };
+                
+                const ws = new WebSocket(server.url, wsOptions);
                 
                 ws.on('open', () => {
                     clearTimeout(timeout);

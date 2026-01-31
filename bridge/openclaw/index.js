@@ -13,6 +13,7 @@
  * - Ethics review system for all tasks
  * - Extension security scanning
  * - Global device discovery
+ * - Humanity Guardian for collective protection
  */
 
 const { OpenPool } = require('./pool');
@@ -33,6 +34,15 @@ const {
     ExtensionSecurityScanner,
     ExtensionReviewBoard
 } = require('./extension_security');
+const {
+    ThreatType,
+    ThreatSeverity,
+    ProtectiveAction,
+    ThreatIntelligence,
+    GuardianReviewer,
+    HumanityGuardianCouncil,
+    GuardianPrinciples
+} = require('./humanity_guardian');
 
 module.exports = {
     // Core
@@ -53,5 +63,14 @@ module.exports = {
     ExtensionStatus,
     ThreatCategory,
     ExtensionSecurityScanner,
-    ExtensionReviewBoard
+    ExtensionReviewBoard,
+    
+    // Humanity Guardian
+    ThreatType,
+    ThreatSeverity,
+    ProtectiveAction,
+    ThreatIntelligence,
+    GuardianReviewer,
+    HumanityGuardianCouncil,
+    GuardianPrinciples
 };

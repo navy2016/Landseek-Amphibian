@@ -843,6 +843,129 @@ class CommandProcessor {
                 message: null
             };
         });
+
+        // ============================================
+        // HUMANITY GUARDIAN COMMANDS
+        // ============================================
+
+        // Show Guardian principles
+        this.register('guardian', 'Show Humanity Guardian principles and status', async () => {
+            return {
+                action: 'show_guardian_principles',
+                message: null
+            };
+        });
+
+        // Report a threat
+        this.register('reportthreat', 'Report a threat to the Humanity Guardian', async (args, argsString) => {
+            if (args.length < 2) {
+                return { message: 'Usage: /reportthreat <type> <target> [description]\n\nThreat types: malware, phishing, ransomware, fraud, harassment, exploitation' };
+            }
+            
+            const type = args[0];
+            const target = args[1];
+            const description = args.slice(2).join(' ');
+            
+            return {
+                message: '🚨 Reporting threat to Humanity Guardian Council...',
+                action: 'report_threat',
+                data: { type, target, description }
+            };
+        }, '/reportthreat <type> <target> [description]');
+
+        // View active threats
+        this.register('threats', 'View active threats being monitored', async () => {
+            return {
+                action: 'show_active_threats',
+                message: null
+            };
+        });
+
+        // Get threat details
+        this.register('threat', 'Get details about a specific threat', async (args) => {
+            if (args.length === 0) {
+                return { message: 'Usage: /threat <threat_id>' };
+            }
+            
+            return {
+                action: 'get_threat_details',
+                data: { threatId: args[0] },
+                message: null
+            };
+        }, '/threat <threat_id>');
+
+        // Request protective action
+        this.register('protect', 'Request protective action against a threat', async (args) => {
+            if (args.length < 2) {
+                return { message: 'Usage: /protect <threat_id> <action>\n\nActions: alert_users, alert_authorities, block_access, quarantine' };
+            }
+            
+            const threatId = args[0];
+            const action = args[1];
+            
+            return {
+                message: '⚡ Requesting protective action (requires consensus)...',
+                action: 'request_protective_action',
+                data: { threatId, action }
+            };
+        }, '/protect <threat_id> <action>');
+
+        // Approve pending action (requires authorization)
+        this.register('approveaction', 'Approve a pending protective action (authorized users only)', async (args) => {
+            if (args.length === 0) {
+                return { message: 'Usage: /approveaction <approval_id>' };
+            }
+            
+            return {
+                message: '✅ Processing action approval...',
+                action: 'approve_protective_action',
+                data: { approvalId: args[0] }
+            };
+        }, '/approveaction <approval_id>');
+
+        // View pending approvals
+        this.register('pendingactions', 'View actions pending human approval', async () => {
+            return {
+                action: 'show_pending_actions',
+                message: null
+            };
+        });
+
+        // View Guardian action log
+        this.register('guardianlog', 'View Humanity Guardian action log', async (args) => {
+            const limit = args.length > 0 ? parseInt(args[0]) : 20;
+            
+            return {
+                action: 'show_guardian_log',
+                data: { limit },
+                message: null
+            };
+        }, '/guardianlog [limit]');
+
+        // Guardian statistics
+        this.register('guardianstats', 'View Humanity Guardian statistics', async () => {
+            return {
+                action: 'show_guardian_stats',
+                message: null
+            };
+        });
+
+        // Add evidence to a threat
+        this.register('addevidence', 'Add evidence to an existing threat report', async (args, argsString) => {
+            if (args.length < 3) {
+                return { message: 'Usage: /addevidence <threat_id> <type> <description>\n\nTypes: screenshot, logs, network, document, witness' };
+            }
+            
+            const threatId = args[0];
+            const evidenceType = args[1];
+            const description = args.slice(2).join(' ');
+            
+            return {
+                message: '📎 Adding evidence to threat report...',
+                action: 'add_threat_evidence',
+                data: { threatId, evidenceType, description }
+            };
+        }, '/addevidence <threat_id> <type> <description>');
     }
 
     /**
