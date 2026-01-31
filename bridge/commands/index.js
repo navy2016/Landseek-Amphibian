@@ -674,6 +674,175 @@ class CommandProcessor {
                 message: null
             };
         });
+
+        // ============================================
+        // ETHICS AND SECURITY COMMANDS
+        // ============================================
+
+        // Show ethics guidelines
+        this.register('ethics', 'Show ethics guidelines for the open pool', async () => {
+            return {
+                action: 'show_ethics_guidelines',
+                message: null
+            };
+        });
+
+        // Review a task manually
+        this.register('reviewtask', 'Manually review a task for ethics compliance', async (args) => {
+            if (args.length === 0) {
+                return { message: 'Usage: /reviewtask <task_id>' };
+            }
+            
+            return {
+                message: '🔍 Reviewing task for ethics compliance...',
+                action: 'review_task_ethics',
+                data: { taskId: args[0] }
+            };
+        }, '/reviewtask <task_id>');
+
+        // Show ethics statistics
+        this.register('ethicsstats', 'Show ethics review statistics', async () => {
+            return {
+                action: 'show_ethics_stats',
+                message: null
+            };
+        });
+
+        // Report a violation
+        this.register('reportviolation', 'Report an ethics violation', async (args, argsString) => {
+            if (args.length < 2) {
+                return { message: 'Usage: /reportviolation <task_id|extension_name> <reason>' };
+            }
+            
+            const target = args[0];
+            const reason = args.slice(1).join(' ');
+            
+            return {
+                message: '📝 Submitting violation report...',
+                action: 'report_violation',
+                data: { target, reason }
+            };
+        }, '/reportviolation <target> <reason>');
+
+        // Scan an extension
+        this.register('scanext', 'Scan a ClawBot extension for security threats', async (args) => {
+            if (args.length === 0) {
+                return { message: 'Usage: /scanext <extension_name_or_url>' };
+            }
+            
+            return {
+                message: '🔒 Scanning extension for security threats...',
+                action: 'scan_extension',
+                data: { extension: args[0] }
+            };
+        }, '/scanext <extension_name_or_url>');
+
+        // Show blocked extensions
+        this.register('blockedext', 'Show list of blocked/hazardous extensions', async () => {
+            return {
+                action: 'show_blocked_extensions',
+                message: null
+            };
+        });
+
+        // Report malicious extension
+        this.register('reportext', 'Report a malicious extension', async (args, argsString) => {
+            if (args.length < 2) {
+                return { message: 'Usage: /reportext <extension_name> <reason>' };
+            }
+            
+            const extensionName = args[0];
+            const reason = args.slice(1).join(' ');
+            
+            return {
+                message: '⚠️ Reporting extension to security board...',
+                action: 'report_extension',
+                data: { extensionName, reason }
+            };
+        }, '/reportext <extension_name> <reason>');
+
+        // Check extension status
+        this.register('extstat', 'Check security status of an extension', async (args) => {
+            if (args.length === 0) {
+                return { message: 'Usage: /extstat <extension_name>' };
+            }
+            
+            return {
+                action: 'check_extension_status',
+                data: { extensionName: args[0] },
+                message: null
+            };
+        }, '/extstat <extension_name>');
+
+        // ============================================
+        // GLOBAL DISCOVERY COMMANDS
+        // ============================================
+
+        // Start global directory server
+        this.register('directory', 'Start a global directory server', async (args) => {
+            const port = args.length > 0 ? parseInt(args[0]) : 8770;
+            const region = args.length > 1 ? args[1] : 'local';
+            
+            return {
+                message: `🌐 Starting global directory server on port ${port}...`,
+                action: 'start_directory_server',
+                data: { port, region }
+            };
+        }, '/directory [port] [region]');
+
+        // Connect to global directory
+        this.register('global', 'Connect to global device directory', async (args) => {
+            const directoryUrl = args.length > 0 ? args[0] : null;
+            
+            return {
+                message: '🌍 Connecting to global directory...',
+                action: 'connect_global_directory',
+                data: { directoryUrl }
+            };
+        }, '/global [directory_url]');
+
+        // Search for devices globally
+        this.register('globalsearch', 'Search for devices globally', async (args) => {
+            const query = args.join(' ') || '';
+            
+            return {
+                message: '🔍 Searching global directory...',
+                action: 'search_global_devices',
+                data: { query }
+            };
+        }, '/globalsearch [query]');
+
+        // Search for pools globally
+        this.register('findpools', 'Find public pools globally', async (args) => {
+            const region = args.length > 0 ? args[0] : null;
+            
+            return {
+                message: '🏊 Searching for public pools...',
+                action: 'search_global_pools',
+                data: { region }
+            };
+        }, '/findpools [region]');
+
+        // Connect to a remote device
+        this.register('connectglobal', 'Connect to a remote device via global directory', async (args) => {
+            if (args.length === 0) {
+                return { message: 'Usage: /connectglobal <device_id>' };
+            }
+            
+            return {
+                message: '🔌 Connecting to remote device...',
+                action: 'connect_global_device',
+                data: { deviceId: args[0] }
+            };
+        }, '/connectglobal <device_id>');
+
+        // Show global connection status
+        this.register('globalstatus', 'Show global directory connection status', async () => {
+            return {
+                action: 'show_global_status',
+                message: null
+            };
+        });
     }
 
     /**

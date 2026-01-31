@@ -10,14 +10,48 @@
  * - Contribution tracking and rewards
  * - Decentralized task distribution
  * - Support for both training and inference
+ * - Ethics review system for all tasks
+ * - Extension security scanning
+ * - Global device discovery
  */
 
 const { OpenPool } = require('./pool');
 const { OpenRegistry } = require('./registry');
 const { ContributionTracker } = require('./contributions');
+const { 
+    EthicsGuidelines,
+    EthicsCategory,
+    ReviewDecision,
+    ViolationSeverity,
+    EthicalReviewer,
+    EthicsReviewBoard
+} = require('./ethics');
+const {
+    ThreatLevel,
+    ExtensionStatus,
+    ThreatCategory,
+    ExtensionSecurityScanner,
+    ExtensionReviewBoard
+} = require('./extension_security');
 
 module.exports = {
+    // Core
     OpenPool,
     OpenRegistry,
-    ContributionTracker
+    ContributionTracker,
+    
+    // Ethics
+    EthicsGuidelines,
+    EthicsCategory,
+    ReviewDecision,
+    ViolationSeverity,
+    EthicalReviewer,
+    EthicsReviewBoard,
+    
+    // Extension Security
+    ThreatLevel,
+    ExtensionStatus,
+    ThreatCategory,
+    ExtensionSecurityScanner,
+    ExtensionReviewBoard
 };

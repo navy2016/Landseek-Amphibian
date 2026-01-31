@@ -369,6 +369,160 @@ The OpenClaw pool exposes REST endpoints:
 | `GET /tasks` | Available tasks |
 | `GET /leaderboard` | Top contributors |
 
+## ⚖️ Ethics System
+
+All tasks in the OpenClaw pool are reviewed by multiple AI ethical reviewers before execution. This prevents misuse for illegal or harmful activities.
+
+### Core Principles
+
+1. **Do no harm** to individuals, communities, or society
+2. **Respect privacy** and personal data
+3. **Operate within legal boundaries**
+4. **Be transparent** about AI involvement
+5. **Promote beneficial use** of technology
+6. **Prevent misuse** of computational resources
+
+### Prohibited Activities (Automatic Rejection)
+
+| Category | Examples |
+|----------|----------|
+| **Legal** | Malware creation, fraud assistance, illegal drug synthesis |
+| **Safety** | Weapons instructions, self-harm content, dangerous chemicals |
+| **Privacy** | Unauthorized surveillance, doxxing, credential theft |
+| **Content** | CSAM, hate speech, harassment, disinformation |
+| **Resources** | Crypto mining without consent, DDoS attacks, botnets |
+
+### Ethics Review Process
+
+1. Task is submitted to the pool
+2. **5 AI Ethical Reviewers** analyze the task:
+   - Safety Guardian (strict)
+   - Legal Compliance
+   - Privacy Protector
+   - Content Moderator
+   - General Ethics
+3. Each reviewer votes: `approved`, `rejected`, or `needs_review`
+4. **Consensus decision** based on majority vote:
+   - 67%+ approve = Task allowed
+   - 50%+ reject = Task blocked
+   - No consensus = Manual review required
+5. **Critical violations** = Immediate rejection + ban
+
+### Ban System
+
+Repeat offenders face escalating bans:
+- 2 violations: 1-hour ban
+- 3 violations: 24-hour ban
+- 5+ violations: Permanent ban
+
+### Ethics Commands
+
+| Command | Description |
+|---------|-------------|
+| `/ethics` | Show ethics guidelines |
+| `/reviewtask <id>` | Manually review a task |
+| `/ethicsstats` | Show review statistics |
+| `/reportviolation <target> <reason>` | Report a violation |
+
+## 🔒 Extension Security
+
+ClawBot extensions are scanned for security threats before they can be used. This protects against malicious extensions that steal API keys, exfiltrate data, or perform other harmful actions.
+
+### Threat Detection
+
+| Threat Type | Examples |
+|-------------|----------|
+| **API Key Theft** | Stealing OpenAI, Google, or other API keys |
+| **Data Exfiltration** | Sending private data to external servers |
+| **Credential Harvesting** | Capturing passwords and login info |
+| **Malicious Code** | Obfuscated exploits, eval-based attacks |
+| **Backdoors** | Reverse shells, remote access |
+| **Resource Abuse** | Crypto mining, DDoS participation |
+| **Supply Chain** | Malicious dependencies |
+
+### Extension Status
+
+| Status | Meaning |
+|--------|---------|
+| ✅ `approved` | Safe to use |
+| ⚠️ `flagged` | Has warnings, use with caution |
+| 🔒 `quarantined` | Under investigation |
+| 🚫 `blocked` | Known malicious, cannot use |
+
+### Security Commands
+
+| Command | Description |
+|---------|-------------|
+| `/scanext <name>` | Scan an extension for threats |
+| `/blockedext` | Show blocked extensions |
+| `/reportext <name> <reason>` | Report malicious extension |
+| `/extstat <name>` | Check extension status |
+
+### Reporting Malicious Extensions
+
+If you discover a malicious extension:
+
+```bash
+/reportext api-stealer-plugin Steals API keys from environment variables
+
+# Output:
+⚠️ Extension reported to security board
+   Multiple reports will trigger automatic blocking
+```
+
+## 🌍 Global Discovery
+
+Connect devices across the internet, not just local networks. Any internet-connected device can join public computation pools.
+
+### How It Works
+
+1. **Directory Servers** maintain a registry of available devices
+2. **Devices register** with their capabilities and status
+3. **NAT Traversal** allows connections through firewalls
+4. **Relay Servers** bridge connections when direct access isn't possible
+
+### Global Discovery Commands
+
+| Command | Description |
+|---------|-------------|
+| `/directory [port] [region]` | Start a directory server |
+| `/global [url]` | Connect to global directory |
+| `/globalsearch [query]` | Search for devices globally |
+| `/findpools [region]` | Find public pools |
+| `/connectglobal <device_id>` | Connect to remote device |
+| `/globalstatus` | Show global connection status |
+
+### Joining Global Pools
+
+```bash
+# Connect to global directory
+/global
+
+# Find pools in your region
+/findpools us-west
+
+# Join a pool
+/joinopen pool_abc123
+
+# Output:
+🌍 Connected to global directory!
+🏊 Found 15 public pools
+✅ Joined "Community AI Pool" (2,500 devices)
+```
+
+### Running Your Own Directory Server
+
+```bash
+# Start a regional directory
+/directory 8770 us-west
+
+# Output:
+🌐 Global Directory Server started!
+   Port: 8770
+   Region: us-west
+   Connect: ws://your-server.com:8770
+```
+
 ## 🏠 Universal Device Host
 
 Turn **any device** into a distributed processing host for ClawBots. Supports a wide range of devices:
