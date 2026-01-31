@@ -1,73 +1,128 @@
 /**
- * Local Brain Adapter (Ollama)
+ * Local Brain Adapter (Ollama / TPU)
  *
  * Connects to a local Ollama instance (default: localhost:11434).
+ * Optimized for on-device TPU inference with Gemma 3 4B.
  * Used for routing, basic chat, and fallback inference.
  */
 
 class LocalBrain {
     constructor(config = {}) {
-        this.baseUrl = config.baseUrl || 'http://localhost:11434';
-        this.model = config.model || 'gemma:2b'; // Default to a small model
-        console.log(`🧠 Local Brain initialized at ${this.baseUrl} using model ${this.model}`);
+        this.baseUrl = config.baseUrl || process.env.OLLAMA_URL || 'http://localhost:11434';
+        this.model = config.model || process.env.TPU_MODEL || 'gemma:3-4b-it'; // Gemma 3 4B for TPU
+        this.fallbackModel = config.fallbackModel || 'gemma:2b'; // Fallback to smaller model
+        this.maxRetries = config.maxRetries || 2;
+        this.timeout = config.timeout || 30000; // 30 second timeout
+        
+        console.log(`🧠 Local Brain initialized at ${this.baseUrl}`);
+        console.log(`   Primary model: ${this.model}`);
+        console.log(`   Fallback model: ${this.fallbackModel}`);
     }
 
     async isAvailable() {
         try {
-            const res = await fetch(`${this.baseUrl}/api/tags`);
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 5000);
+            
+            const res = await fetch(`${this.baseUrl}/api/tags`, {
+                signal: controller.signal
+            });
+            clearTimeout(timeoutId);
             return res.ok;
         } catch (e) {
+            console.log('⚠️ Ollama not available:', e.message);
             return false;
         }
     }
 
-    async chat(messages, options = {}) {
+    async getAvailableModels() {
         try {
-            const response = await fetch(`${this.baseUrl}/api/chat`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    model: this.model,
-                    messages: messages,
-                    stream: false, // For now, non-streaming for simplicity in initial implementation
-                    ...options
-                })
-            });
-
-            if (!response.ok) {
-                throw new Error(`Ollama API error: ${response.statusText}`);
-            }
-
-            const data = await response.json();
-            return data.message; // { role: 'assistant', content: '...' }
-        } catch (error) {
-            console.error('Local Brain Chat Error:', error);
-            // Fallback response
-            return {
-                role: 'assistant',
-                content: "I'm having trouble thinking right now. Is Ollama running?"
-            };
+            const res = await fetch(`${this.baseUrl}/api/tags`);
+            if (!res.ok) return [];
+            const data = await res.json();
+            return data.models?.map(m => m.name) || [];
+        } catch (e) {
+            return [];
         }
     }
 
-    // Streaming implementation (Generator)
+    async chat(messages, options = {}) {
+        const models = [this.model, this.fallbackModel];
+        let lastError = null;
+        
+        for (const model of models) {
+            try {
+                console.log(`💭 Attempting inference with ${model}...`);
+                
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), this.timeout);
+                
+                const response = await fetch(`${this.baseUrl}/api/chat`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        model: model,
+                        messages: messages,
+                        stream: false,
+                        options: {
+                            temperature: options.temperature || 0.7,
+                            top_k: options.topK || 40,
+                            top_p: options.topP || 0.9,
+                            num_predict: options.maxTokens || 1024
+                        }
+                    }),
+                    signal: controller.signal
+                });
+                
+                clearTimeout(timeoutId);
+
+                if (!response.ok) {
+                    throw new Error(`Ollama API error: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                console.log(`✅ Inference complete with ${model}`);
+                return data.message; // { role: 'assistant', content: '...' }
+                
+            } catch (error) {
+                console.error(`❌ ${model} failed:`, error.message);
+                lastError = error;
+                continue; // Try next model
+            }
+        }
+        
+        // All models failed, return fallback response
+        console.error('All local brain models failed:', lastError?.message);
+        return {
+            role: 'assistant',
+            content: "I'm having trouble processing that right now. Please ensure Ollama is running with a compatible model (gemma:3-4b-it or gemma:2b)."
+        };
+    }
+
+    // Streaming implementation (Generator) - optimized for TPU
     async *chatStream(messages, options = {}) {
+        const model = this.model;
+        
         try {
+            console.log(`🌊 Starting streaming inference with ${model}...`);
+            
             const response = await fetch(`${this.baseUrl}/api/chat`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    model: this.model,
+                    model: model,
                     messages: messages,
                     stream: true,
-                    ...options
+                    options: {
+                        temperature: options.temperature || 0.7,
+                        top_k: options.topK || 40,
+                        top_p: options.topP || 0.9,
+                        num_predict: options.maxTokens || 1024
+                    }
                 })
             });
 
             if (!response.ok) throw new Error(`Ollama API error: ${response.statusText}`);
-
-            // Note: In Node.js environment, response.body is a ReadableStream (web standard) if using fetch.
-            // But if we use node-fetch or undici, it might differ. Node 22 has native fetch which returns web stream.
 
             const reader = response.body.getReader();
             const decoder = new TextDecoder();
@@ -90,9 +145,12 @@ class LocalBrain {
                         if (json.message && json.message.content) {
                             yield json.message.content;
                         }
-                        if (json.done) return;
+                        if (json.done) {
+                            console.log('✅ Streaming complete');
+                            return;
+                        }
                     } catch (e) {
-                        // ignore parse errors
+                        // ignore parse errors for incomplete JSON
                     }
                 }
             }
@@ -109,9 +167,19 @@ class LocalBrain {
                 }
             }
         } catch (error) {
-             console.error('Local Brain Stream Error:', error);
-             yield " [Error: Local Brain Disconnected]";
+            console.error('🌊 Stream Error:', error.message);
+            yield " [Error: Local Brain stream disconnected]";
         }
+    }
+
+    /**
+     * Quick inference for classification/routing (uses smaller context)
+     */
+    async quickInfer(prompt, options = {}) {
+        return this.chat([{ role: 'user', content: prompt }], {
+            ...options,
+            maxTokens: options.maxTokens || 256 // Shorter for classification
+        });
     }
 }
 
