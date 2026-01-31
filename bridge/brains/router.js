@@ -46,6 +46,7 @@ Available Tools:
 - stitch: UI generation, screen design, frontend layouts.
 - context7: Memory, searching past conversations, long-term context.
 - android: Sending SMS, making calls, system settings.
+- collective: Distributed inference across multiple devices (use for complex or compute-heavy tasks when collective pool is available).
 - local: General chat, reasoning, simple questions, or if no other tool fits.
 
 User Request: "${task}"
