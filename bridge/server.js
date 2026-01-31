@@ -659,7 +659,11 @@ async function startP2PHost(port) {
         
         // Handle P2P events
         p2pHost.on('ai_request', async (data) => {
-            const personality = personalities.get('nova'); // Default to Nova
+            // Use requested personality or default to first active
+            const active = personalities.getActive();
+            const personality = data.personality 
+                ? personalities.get(data.personality) 
+                : active[0] || personalities.get('nova');
             await askPersonality(personality, data.task);
         });
         

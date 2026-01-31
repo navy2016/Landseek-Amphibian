@@ -323,6 +323,7 @@ class P2PClient {
         this.messageHandlers = [];
         this.reconnectAttempts = 0;
         this.maxReconnectAttempts = 3;
+        this.shouldReconnect = true; // Flag to control reconnection behavior
     }
 
     /**
@@ -382,8 +383,8 @@ class P2PClient {
                     this.isConnected = false;
                     this.emit('disconnected', { code, reason: reason.toString() });
                     
-                    // Auto-reconnect logic
-                    if (this.reconnectAttempts < this.maxReconnectAttempts) {
+                    // Auto-reconnect logic (only if explicitly allowed)
+                    if (this.shouldReconnect && this.reconnectAttempts < this.maxReconnectAttempts) {
                         this.reconnectAttempts++;
                         setTimeout(() => {
                             this.connectDirect(host, port, secret, name);
@@ -474,7 +475,7 @@ class P2PClient {
      * Disconnect from room
      */
     disconnect() {
-        this.maxReconnectAttempts = 0; // Prevent auto-reconnect
+        this.shouldReconnect = false; // Prevent auto-reconnect
         if (this.ws) {
             this.ws.close(1000, 'User disconnected');
         }

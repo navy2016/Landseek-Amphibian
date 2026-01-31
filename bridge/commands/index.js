@@ -233,8 +233,9 @@ class CommandProcessor {
             
             try {
                 const result = await this.documents.upload(filePath);
+                const previewText = result.preview ? result.preview.slice(0, 100) : '';
                 return { 
-                    message: `✅ Document uploaded: 📄 ${result.filename} (${result.size})\n   Preview: ${result.preview.substring(0, 100)}...`
+                    message: `✅ Document uploaded: 📄 ${result.filename} (${result.size})\n   Preview: ${previewText}...`
                 };
             } catch (e) {
                 return { message: `❌ Upload failed: ${e.message}` };

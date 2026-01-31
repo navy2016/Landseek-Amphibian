@@ -7,6 +7,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 
 // Supported file extensions by category
 const SUPPORTED_FORMATS = {
@@ -77,8 +78,8 @@ class DocumentManager {
         const category = this.getCategory(filePath);
         const stats = fs.statSync(filePath);
         
-        // Generate unique ID
-        const id = `doc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        // Generate unique ID using crypto for collision resistance
+        const id = `doc_${Date.now()}_${crypto.randomBytes(6).toString('hex')}`;
         
         // Read and process content based on type
         let content = '';
