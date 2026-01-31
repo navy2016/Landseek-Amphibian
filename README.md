@@ -233,8 +233,65 @@ export CONTEXT7_API_KEY="your-context7-api-key"
 - [x] **Phase 6: Document Analysis** - 70+ file format support
 - [x] **Phase 7: P2P Networking** - Host/Join rooms with share codes
 - [x] **Phase 8: RAG Persistence** - Save/load memories and mind maps
-- [ ] **Phase 9: The Embedding** - Compile Node.js for Android and bundle in assets
-- [ ] **Phase 10: Release** - First APK build
+- [x] **Phase 9: The Embedding** - Android build system with Gradle, Node.js bundling
+- [x] **Phase 10: Release** - Build configuration and scripts ready
+
+## 🔨 Build Instructions
+
+### Quick Build (One Command)
+
+```bash
+./scripts/build_release.sh
+```
+
+### Manual Build
+
+1. **Set up Node.js runtime:**
+```bash
+./scripts/setup_runtime.sh
+```
+
+2. **Bundle bridge code:**
+```bash
+./scripts/bundle_bridge.sh
+```
+
+3. **Build the APK:**
+```bash
+cd android
+./gradlew assembleRelease
+```
+
+4. **Install on device:**
+```bash
+adb install app/build/outputs/apk/release/app-release.apk
+```
+
+### Build Requirements
+
+- **JDK 17+** - Required for Gradle
+- **Android SDK 34** - Target API level
+- **Node.js** (host machine) - For installing bridge dependencies
+
+### Signing for Release
+
+To sign the APK for Play Store distribution:
+
+1. Generate a keystore:
+```bash
+keytool -genkey -v -keystore amphibian.jks -keyalg RSA -keysize 2048 -validity 10000 -alias amphibian
+```
+
+2. Create `android/local.properties`:
+```properties
+sdk.dir=/path/to/android/sdk
+storeFile=../amphibian.jks
+storePassword=your_password
+keyAlias=amphibian
+keyPassword=your_password
+```
+
+3. Update `android/app/build.gradle` to use release signing config.
 
 ## 🔒 Security
 
