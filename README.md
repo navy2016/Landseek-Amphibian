@@ -6,7 +6,7 @@
 
 ## The Vision
 
-Landseek-Amphibian is a complete **on-device AI agent** that merges **Landseek** (the beautiful, TPU-optimized chat UI) with **OpenClaw** (the powerful, tool-using agent runtime) into a **single, installable Android APK**.
+Landseek-Amphibian is a complete **on-device AI agent** that merges **Landseek** (the beautiful, TPU-optimized chat UI with 10 AI personalities) with **OpenClaw** (the powerful, tool-using agent runtime) into a **single, installable Android APK**.
 
 **Goal:** No Termux setup. No command line. Just install the app, and you have a fully autonomous, tool-using AI agent on your phone.
 
@@ -15,10 +15,72 @@ Landseek-Amphibian is a complete **on-device AI agent** that merges **Landseek**
 - **📦 Single Install:** One APK contains the UI, the LLM engine (Gemma/Ollama), and the Agent Runtime.
 - **📱 Native UI:** 120Hz Jetpack Compose interface with dark mode support.
 - **🧠 On-Device TPU AI:** Runs Gemma 3 4B locally on Pixel TPU/NPU for private, offline inference.
+- **🎭 10 AI Personalities:** Chat with Nova, Echo, Sage, Spark, Atlas, Luna, Cipher, Muse, Phoenix, and Zen.
 - **🛠️ ClawdBot Tools:** Full suite of Android-native tools (SMS, Calls, Files, Memory, etc.).
+- **📄 Document Analysis:** Upload and analyze 70+ file formats (PDF, DOCX, images, code, etc.).
 - **🔌 MCP Protocol:** Model Context Protocol support for external AI services (Jules, Stitch, Context7).
-- **🔄 P2P Sync:** Sync memories and context between Amphibian devices on local network.
+- **🌐 P2P Networking:** Host or join chat rooms, share LLM capabilities with others.
+- **🔄 Memory Sync:** Sync memories and context between Amphibian devices on local network.
 - **🎯 Smart Routing:** Automatic task classification routes requests to the best available brain.
+
+## 🎭 AI Personalities
+
+The chat room supports up to **10 unique AI personalities**, each with distinct characteristics:
+
+| Name | Avatar | Style |
+|------|--------|-------|
+| **Nova** | 🌟 | Curious, analytical, asks probing questions |
+| **Echo** | 🎭 | Creative, playful, uses metaphors |
+| **Sage** | 🦉 | Wise, contemplative, philosophical |
+| **Spark** | ⚡ | Energetic, enthusiastic, motivational |
+| **Atlas** | 🗺️ | Practical, structured, action-oriented |
+| **Luna** | 🌙 | Empathetic, nurturing, supportive |
+| **Cipher** | 🔮 | Logical, precise, technical |
+| **Muse** | 🎨 | Artistic, inspiring, poetic |
+| **Phoenix** | 🔥 | Resilient, transformative, growth-focused |
+| **Zen** | ☯️ | Calm, mindful, peaceful |
+
+## 📋 Commands
+
+| Command | Description |
+|---------|-------------|
+| `/help` | Show all available commands |
+| `/personalities` | List all AI personalities |
+| `/add <id>` | Add an AI to the chat |
+| `/remove <id>` | Remove an AI from the chat |
+| `/rename <id> <name>` | Rename an AI personality |
+| `/ask <id> <question>` | Ask a specific AI a question |
+| `/private <id>` | Start private chat with an AI |
+| `/endprivate` | End private chat |
+| `/round <N>` | Start N exchanges between AIs |
+| `/upload <path>` | Upload a document |
+| `/docs` | List uploaded documents |
+| `/select <name>` | Select a document as active |
+| `/analyze <id> <prompt>` | Have AI analyze active document |
+| `/tools` | List available tools |
+| `/remember <text>` | Save to long-term memory |
+| `/recall <query>` | Search memory |
+| `/host [port]` | Host a P2P room |
+| `/join <code>` | Join a P2P room |
+| `/leave` | Leave P2P session |
+| `/clear` | Clear chat history |
+
+## 📄 Supported File Formats (70+)
+
+### Text & Code
+`.txt`, `.md`, `.json`, `.csv`, `.xml`, `.yaml`, `.py`, `.js`, `.ts`, `.java`, `.c`, `.cpp`, `.go`, `.rs`, `.rb`, `.php`, `.swift`, `.kt`, `.sql`, `.sh`
+
+### Documents
+`.pdf`, `.docx`, `.doc`, `.odt`, `.rtf`, `.epub`
+
+### Images
+`.jpg`, `.jpeg`, `.png`, `.gif`, `.webp`, `.bmp`, `.svg`
+
+### Audio & Video
+`.mp3`, `.wav`, `.ogg`, `.mp4`, `.webm`, `.mkv`
+
+### Archives
+`.zip`, `.tar`, `.gz`, `.7z`
 
 ## 🦎 Adaptive Architecture (One App, Two Modes)
 
@@ -61,6 +123,22 @@ Landseek-Amphibian automatically detects device capabilities to choose the best 
 ### AI
 - `inference` - Run local LLM inference on TPU
 
+## 🌐 P2P Networking
+
+Share your LLM capabilities with others - perfect for group chats where only one device runs the AI:
+
+```
+You: /host
+🌐 Room is now shared!
+   Share code (LAN): MTkyLjE2OC4xLjEwMDo4NzY1OkFCQzEyMw==
+   Others can join with: /join <code>
+
+---
+
+You: /join MTkyLjE2OC4xLjEwMDo4NzY1OkFCQzEyMw==
+✅ Connected to remote room!
+```
+
 ## 🏗️ Architecture
 
 ```
@@ -80,6 +158,10 @@ Landseek-Amphibian automatically detects device capabilities to choose the best 
 │                         │  │  │   └─────┘ └──────┘  │  │  ││
 │                         │  │  │   ┌───────────────┐ │  │  ││
 │                         │  │  │   │Context7/Local│ │  │  ││
+│                         │  │  │   └───────────────┘ │  │  ││
+│                         │  │  │   ┌───────────────┐ │  │  ││
+│                         │  │  │   │ Personalities │ │  │  ││
+│                         │  │  │   │  🌟🎭🦉⚡🗺️   │ │  │  ││
 │                         │  │  │   └───────────────┘ │  │  ││
 │                         │  │  └─────────────────────┘  │  ││
 │                         │  └───────────────────────────┘  ││
@@ -147,8 +229,12 @@ export CONTEXT7_API_KEY="your-context7-api-key"
 - [x] **Phase 2: Prototype Bridge** - Connect Landseek UI to OpenClaw agent
 - [x] **Phase 3: Tool Integration** - Full ClawdBot tool support
 - [x] **Phase 4: TPU Inference** - MediaPipe LLM integration for on-device AI
-- [ ] **Phase 5: The Embedding** - Compile Node.js for Android and bundle in assets
-- [ ] **Phase 6: Release** - First APK build
+- [x] **Phase 5: AI Personalities** - 10 unique AI personalities from Landseek
+- [x] **Phase 6: Document Analysis** - 70+ file format support
+- [x] **Phase 7: P2P Networking** - Host/Join rooms with share codes
+- [x] **Phase 8: RAG Persistence** - Save/load memories and mind maps
+- [ ] **Phase 9: The Embedding** - Compile Node.js for Android and bundle in assets
+- [ ] **Phase 10: Release** - First APK build
 
 ## 🔒 Security
 

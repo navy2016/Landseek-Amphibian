@@ -10,16 +10,22 @@
  * - Full MCP protocol support for external tools (Jules, Stitch, Context7)
  * - Android native tool integration (SMS, Calls, Files, etc.)
  * - ClawdBot tool support (all standard agent tools)
+ * - 10 AI Personalities (Nova, Echo, Sage, etc.)
+ * - Document Upload & Analysis
+ * - P2P Room Hosting/Joining
+ * - Command System (/help, /tools, /upload, etc.)
  */
 
 const WebSocket = require('ws');
 const http = require('http');
+const path = require('path');
 
 // Configuration
 const PORT = process.env.AMPHIBIAN_PORT || 3000;
 const AUTH_TOKEN = process.env.AMPHIBIAN_TOKEN; // Passed from Android via Env Var
 const OLLAMA_URL = process.env.OLLAMA_URL || 'http://localhost:11434';
 const TPU_MODEL = process.env.TPU_MODEL || 'gemma:3-4b-it'; // On-device TPU model
+const STORAGE_PATH = process.env.ANDROID_FILES_DIR || './data';
 
 // Event Types
 const EVENTS = {
@@ -28,6 +34,7 @@ const EVENTS = {
     STOP_TASK: 'STOP_TASK',
     PROVIDE_INPUT: 'PROVIDE_INPUT',
     CALL_TOOL: 'CALL_TOOL',
+    EXECUTE_COMMAND: 'EXECUTE_COMMAND',
     
     // Outbound (Agent -> UI)
     STATUS_UPDATE: 'STATUS_UPDATE',
@@ -36,18 +43,31 @@ const EVENTS = {
     TOOL_RESULT: 'TOOL_RESULT',
     RESULT: 'RESULT',
     ERROR: 'ERROR',
-    STREAM_CHUNK: 'STREAM_CHUNK'
+    STREAM_CHUNK: 'STREAM_CHUNK',
+    AI_RESPONSE: 'AI_RESPONSE',
+    COMMAND_RESULT: 'COMMAND_RESULT',
+    P2P_STATUS: 'P2P_STATUS'
 };
 
 // State
 let activeSocket = null;
 let agentBusy = false;
 let currentTaskAborted = false;
+let privateChat = null; // { personality, history }
+let p2pHost = null;
+let p2pClient = null;
 
+// Core Components
 const AmphibianHost = require('./mcp_host');
 const MultiBrainRouter = require('./brains/router');
 const LocalBrain = require('./brains/local_brain');
 const ConversationMemory = require('./brains/memory');
+
+// New Landseek Features
+const { PersonalityManager } = require('./personalities');
+const { DocumentManager } = require('./documents');
+const { CommandProcessor } = require('./commands');
+const { P2PHost, P2PClient } = require('./p2p');
 
 // Initialize Components with TPU optimization
 const host = new AmphibianHost();
@@ -57,6 +77,20 @@ const localBrain = new LocalBrain({
 });
 const router = new MultiBrainRouter(localBrain);
 const memory = new ConversationMemory(50); // Extended memory for complex tasks
+
+// Initialize Landseek Features
+const personalities = new PersonalityManager(path.join(STORAGE_PATH, 'personalities.json'));
+const documents = new DocumentManager(path.join(STORAGE_PATH, 'documents'));
+const commandProcessor = new CommandProcessor({
+    personalities,
+    documents,
+    localBrain,
+    memory
+});
+
+// Load saved state
+personalities.load();
+documents.loadDocumentIndex();
 
 // Android Bridge Callback (injected via JNI in production)
 let androidToolCallback = global.androidBridgeCallback || async function(toolName, args) {
@@ -415,10 +449,274 @@ async function handleMessage(data) {
                 // Could be handled by pending promises in tool execution
             }
             break;
+        
+        case EVENTS.EXECUTE_COMMAND:
+            // Handle slash commands
+            await handleCommand(data.payload.command);
+            break;
             
         default:
             console.log(`Unknown event type: ${data.type}`);
     }
+}
+
+/**
+ * Handle slash commands from UI
+ */
+async function handleCommand(commandText) {
+    const result = await commandProcessor.execute(commandText, (msg) => {
+        send(EVENTS.LOG, { text: msg, type: 'info' });
+    });
+    
+    if (result.message) {
+        send(EVENTS.COMMAND_RESULT, { message: result.message });
+    }
+    
+    // Handle command actions
+    if (result.action) {
+        await handleCommandAction(result.action, result.data);
+    }
+}
+
+/**
+ * Handle command actions that need special processing
+ */
+async function handleCommandAction(action, data) {
+    switch (action) {
+        case 'ask_ai':
+            // Ask specific AI personality
+            await askPersonality(data.personality, data.question);
+            break;
+            
+        case 'ai_round':
+            // Start round of AI exchanges
+            await runAIRound(data.count);
+            break;
+            
+        case 'analyze_document':
+            // Have AI analyze document
+            await analyzeDocument(data.personality, data.document, data.content, data.prompt);
+            break;
+            
+        case 'start_private':
+            privateChat = {
+                personality: data.personality,
+                history: []
+            };
+            break;
+            
+        case 'end_private':
+            privateChat = null;
+            break;
+            
+        case 'host_p2p':
+            await startP2PHost(data.port);
+            break;
+            
+        case 'join_p2p':
+            await joinP2PRoom(data.shareCode);
+            break;
+            
+        case 'leave_p2p':
+            await leaveP2P();
+            break;
+            
+        case 'remember':
+            await androidToolCallback('remember', { content: data.content });
+            send(EVENTS.COMMAND_RESULT, { message: '💾 Memory saved.' });
+            break;
+            
+        case 'recall':
+            const recallResult = await androidToolCallback('recall', { query: data.query });
+            send(EVENTS.COMMAND_RESULT, { message: recallResult.output || 'No memories found.' });
+            break;
+    }
+}
+
+/**
+ * Ask a specific AI personality a question
+ */
+async function askPersonality(personality, question) {
+    send(EVENTS.LOG, { text: `${personality.avatar} ${personality.name} is thinking...`, type: 'info' });
+    
+    const systemPrompt = personalities.buildSystemPrompt(personality, {
+        otherParticipants: personalities.getActive().filter(p => p.id !== personality.id).map(p => p.name)
+    });
+    
+    const messages = [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: question }
+    ];
+    
+    try {
+        const response = await localBrain.chat(messages);
+        const content = response.content || "I'm not sure how to respond to that.";
+        
+        send(EVENTS.AI_RESPONSE, {
+            personality: { id: personality.id, name: personality.name, avatar: personality.avatar },
+            content,
+            timestamp: new Date().toISOString()
+        });
+    } catch (e) {
+        send(EVENTS.ERROR, { message: `${personality.name} failed to respond: ${e.message}` });
+    }
+}
+
+/**
+ * Run a round of AI exchanges
+ */
+async function runAIRound(count) {
+    const active = personalities.getActive();
+    if (active.length < 2) {
+        send(EVENTS.COMMAND_RESULT, { message: 'Need at least 2 active personalities for a round.' });
+        return;
+    }
+    
+    let lastMessage = "What's something interesting you'd like to discuss?";
+    
+    for (let i = 0; i < count && !currentTaskAborted; i++) {
+        // Pick a random personality
+        const personality = active[i % active.length];
+        
+        const systemPrompt = personalities.buildSystemPrompt(personality, {
+            otherParticipants: active.filter(p => p.id !== personality.id).map(p => p.name)
+        });
+        
+        const messages = [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: `Continue this conversation naturally. Previous message: "${lastMessage}"` }
+        ];
+        
+        try {
+            const response = await localBrain.chat(messages);
+            lastMessage = response.content || "...";
+            
+            send(EVENTS.AI_RESPONSE, {
+                personality: { id: personality.id, name: personality.name, avatar: personality.avatar },
+                content: lastMessage,
+                timestamp: new Date().toISOString(),
+                roundIndex: i + 1
+            });
+            
+            // Small delay between responses
+            await new Promise(resolve => setTimeout(resolve, 500));
+        } catch (e) {
+            console.error('AI round error:', e);
+        }
+    }
+    
+    send(EVENTS.COMMAND_RESULT, { message: `🔄 Round complete. ${count} exchanges.` });
+}
+
+/**
+ * Have AI analyze a document
+ */
+async function analyzeDocument(personality, document, content, prompt) {
+    const systemPrompt = personalities.buildSystemPrompt(personality);
+    
+    const messages = [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: `Analyze this document and ${prompt}:\n\n${content}` }
+    ];
+    
+    try {
+        const response = await localBrain.chat(messages);
+        
+        send(EVENTS.AI_RESPONSE, {
+            personality: { id: personality.id, name: personality.name, avatar: personality.avatar },
+            content: `📊 Analysis of ${document.filename}:\n\n${response.content}`,
+            timestamp: new Date().toISOString(),
+            isAnalysis: true
+        });
+    } catch (e) {
+        send(EVENTS.ERROR, { message: `Analysis failed: ${e.message}` });
+    }
+}
+
+/**
+ * Start P2P hosting
+ */
+async function startP2PHost(port) {
+    if (p2pHost) {
+        await p2pHost.stop();
+    }
+    
+    p2pHost = new P2PHost({ port });
+    
+    try {
+        const info = await p2pHost.start();
+        
+        send(EVENTS.P2P_STATUS, {
+            status: 'hosting',
+            port: info.port,
+            shareCodes: info.shareCodes,
+            localIPs: info.localIPs
+        });
+        
+        send(EVENTS.COMMAND_RESULT, { 
+            message: `🌐 Room is now shared!\n   Share code (LAN): ${info.shareCodes.lan}\n   Others can join with: /join <code>` 
+        });
+        
+        // Handle P2P events
+        p2pHost.on('ai_request', async (data) => {
+            const personality = personalities.get('nova'); // Default to Nova
+            await askPersonality(personality, data.task);
+        });
+        
+    } catch (e) {
+        send(EVENTS.ERROR, { message: `Failed to start P2P host: ${e.message}` });
+    }
+}
+
+/**
+ * Join a P2P room
+ */
+async function joinP2PRoom(shareCode) {
+    if (p2pClient) {
+        p2pClient.disconnect();
+    }
+    
+    p2pClient = new P2PClient();
+    
+    try {
+        const info = await p2pClient.connect(shareCode, 'Amphibian User');
+        
+        send(EVENTS.P2P_STATUS, {
+            status: 'connected',
+            clientId: info.clientId,
+            participants: info.participants
+        });
+        
+        send(EVENTS.COMMAND_RESULT, { message: '✅ Connected to remote room!' });
+        
+        // Handle incoming messages
+        p2pClient.on('message', (msg) => {
+            if (msg.type === 'AI_RESPONSE') {
+                send(EVENTS.AI_RESPONSE, msg);
+            } else if (msg.type === 'CHAT_MESSAGE') {
+                send(EVENTS.LOG, { text: `${msg.from.name}: ${msg.content}`, type: 'chat' });
+            }
+        });
+        
+    } catch (e) {
+        send(EVENTS.ERROR, { message: `Failed to join room: ${e.message}` });
+    }
+}
+
+/**
+ * Leave P2P session
+ */
+async function leaveP2P() {
+    if (p2pHost) {
+        await p2pHost.stop();
+        p2pHost = null;
+    }
+    if (p2pClient) {
+        p2pClient.disconnect();
+        p2pClient = null;
+    }
+    
+    send(EVENTS.P2P_STATUS, { status: 'disconnected' });
 }
 
 function send(type, payload) {
@@ -429,4 +727,5 @@ function send(type, payload) {
 
 server.listen(PORT, '127.0.0.1', () => {
     console.log(`🐸 Amphibian Bridge listening on 127.0.0.1:${PORT}`);
+    console.log(`🎭 ${personalities.getActive().length} AI personalities active`);
 });
