@@ -82,7 +82,7 @@ The chat room supports up to **10 unique AI personalities**, each with distinct 
 ### Archives
 `.zip`, `.tar`, `.gz`, `.7z`
 
-## 🦎 Adaptive Architecture (One App, Two Modes)
+## 🦎 Adaptive Architecture (One App, Three Modes)
 
 Landseek-Amphibian automatically detects device capabilities to choose the best operating mode:
 
@@ -96,6 +96,73 @@ Landseek-Amphibian automatically detects device capabilities to choose the best 
 *   **Active:** On older phones or when battery saver is on.
 *   **Function:** Connects to a remote brain (Jules, Context7, or a local P2P Host).
 *   **Role:** Acts as a UI/Sensor terminal. It exposes its tools (Camera, SMS) to the remote brain but doesn't do the heavy thinking.
+
+### 3. **Collective Mode** 🆕 (Distributed AI)
+*   **Active:** When multiple devices pool their resources together.
+*   **Function:** Distributes AI inference across all participating devices.
+*   **Role:** Each device contributes processing power to a shared "Collective Brain".
+*   **Benefits:**
+    - Handle larger models than any single device could run alone
+    - Fault-tolerant: tasks automatically reassign if a device disconnects
+    - Optimized for high-latency networks with adaptive timeouts
+    - Speculative execution hides network delays
+
+## 🌐 Collective Mode
+
+Pool AI processing power across multiple devices to achieve more than any single device could alone. Perfect for:
+- Running inference on compute-heavy tasks
+- Groups of friends wanting to share AI capabilities
+- Building resilient AI systems that survive device failures
+
+### Starting a Collective Pool
+
+```
+You: /collective
+🌐 Collective pool started!
+   Pool: Amphibian Collective
+   Port: 8766
+   Share code: Y29sbGVjdGl2ZToxOTIuMTY4LjEuMTAwOjg3NjY6YWJjMTIz
+   Others can join with: /pool Y29sbGVjdGl2ZToxOTIuMTY4LjEuMTAwOjg3NjY6YWJjMTIz
+```
+
+### Joining a Collective Pool
+
+```
+You: /pool Y29sbGVjdGl2ZToxOTIuMTY4LjEuMTAwOjg3NjY6YWJjMTIz
+✅ Joined collective pool "Amphibian Collective"!
+   Device ID: abc123def456
+   Total devices: 3
+   Your device is now contributing to collective inference.
+```
+
+### Collective Commands
+
+| Command | Description |
+|---------|-------------|
+| `/collective [port] [name]` | Start a new collective pool |
+| `/pool <share_code>` | Join an existing collective pool |
+| `/unpool` | Leave the collective pool |
+| `/poolstatus` | Show collective pool status |
+| `/capability <level>` | Set device capability (low/medium/high/tpu) |
+| `/usecollective` | Use collective brain for next inference |
+
+### How Collective Mode Handles High Latency
+
+Collective Mode is designed from the ground up to work even with high network latency and delays:
+
+1. **Asynchronous Task Queuing**: Tasks are queued and distributed to available devices, not blocked waiting for responses.
+
+2. **Adaptive Timeouts**: Timeouts automatically adjust based on historical device latency. Slow but reliable devices are given more time.
+
+3. **Redundant Execution**: Critical tasks are sent to multiple devices. The first successful result is used, providing fault tolerance.
+
+4. **Chunked Processing**: Long inference tasks are broken into smaller chunks that can be distributed and processed in parallel.
+
+5. **Speculative Execution**: While waiting for responses, the system can pre-process likely follow-up requests.
+
+6. **Partial Results**: If a task times out but has partial results, those are used rather than failing completely.
+
+7. **Device Reliability Scoring**: Devices that frequently fail or timeout are deprioritized for future tasks.
 
 ## 🛠️ Available Tools (ClawdBot)
 

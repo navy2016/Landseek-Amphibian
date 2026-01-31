@@ -11,7 +11,8 @@
     "mcp_enabled": true,
     "p2p_enabled": true,
     "streaming_enabled": true,
-    "tpu_acceleration": true
+    "tpu_acceleration": true,
+    "collective_mode": true
   },
   "brains": [
     { 
@@ -27,6 +28,12 @@
       "priority": 2,
       "role": "fallback",
       "description": "Smaller model for faster responses when TPU is busy"
+    },
+    { 
+      "id": "collective", 
+      "priority": 2,
+      "role": "distributed",
+      "description": "Collective brain pooled across multiple devices for distributed inference"
     },
     { 
       "id": "google_jules", 
@@ -69,6 +76,12 @@
     ],
     "ai": [
       "inference"
+    ],
+    "collective": [
+      "start_pool",
+      "join_pool",
+      "leave_pool",
+      "pool_status"
     ]
   },
   "permissions": {
@@ -89,5 +102,14 @@
     "port": 3000,
     "host": "127.0.0.1",
     "protocol": "websocket"
+  },
+  "collective": {
+    "default_port": 8766,
+    "max_devices": 10,
+    "timeout_base": 30000,
+    "timeout_max": 120000,
+    "redundancy_factor": 1.5,
+    "speculative_execution": true,
+    "adaptive_timeout": true
   }
 }

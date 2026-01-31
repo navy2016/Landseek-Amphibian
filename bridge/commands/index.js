@@ -404,6 +404,86 @@ class CommandProcessor {
             }
             return { message: this.documents.listSupportedFormats() };
         });
+
+        // ============================================
+        // COLLECTIVE MODE COMMANDS
+        // ============================================
+
+        // Start collective pool
+        this.register('collective', 'Start a new collective pool', async (args) => {
+            const port = args.length > 0 ? parseInt(args[0]) : 8766;
+            const poolName = args.length > 1 ? args.slice(1).join(' ') : 'Amphibian Collective';
+            
+            return {
+                message: `🌐 Starting Collective pool "${poolName}" on port ${port}...`,
+                action: 'start_collective',
+                data: { port, poolName }
+            };
+        }, '/collective [port] [pool_name]');
+
+        // Join collective pool
+        this.register('pool', 'Join an existing collective pool', async (args) => {
+            if (args.length === 0) {
+                return { message: 'Usage: /pool <share_code>' };
+            }
+            
+            return {
+                message: '🔌 Joining collective pool...',
+                action: 'join_collective',
+                data: { shareCode: args[0] }
+            };
+        }, '/pool <share_code>');
+
+        // Leave collective
+        this.register('unpool', 'Leave the collective pool', async () => {
+            return {
+                message: '👋 Leaving collective pool...',
+                action: 'leave_collective'
+            };
+        });
+
+        // Collective status
+        this.register('poolstatus', 'Show collective pool status', async () => {
+            return {
+                action: 'collective_status',
+                message: null
+            };
+        });
+
+        // Set device capability for collective
+        this.register('capability', 'Set device capability for collective', async (args) => {
+            if (args.length === 0) {
+                return { 
+                    message: '**Device Capability Levels:**\n' +
+                             '• `low` - Small chunks (1-2 tokens)\n' +
+                             '• `medium` - Moderate chunks (8-16 tokens)\n' +
+                             '• `high` - Large chunks (32+ tokens)\n' +
+                             '• `tpu` - TPU/NPU acceleration\n\n' +
+                             'Usage: /capability <level>'
+                };
+            }
+            
+            const capability = args[0].toLowerCase();
+            const valid = ['low', 'medium', 'high', 'tpu'];
+            
+            if (!valid.includes(capability)) {
+                return { message: `Invalid capability. Choose from: ${valid.join(', ')}` };
+            }
+            
+            return {
+                action: 'set_capability',
+                data: { capability },
+                message: `📊 Device capability set to: ${capability}`
+            };
+        }, '/capability <low|medium|high|tpu>');
+
+        // Use collective brain for next inference
+        this.register('usecollective', 'Use collective brain for inference', async () => {
+            return {
+                action: 'use_collective',
+                message: '🧠 Next inference will use the collective pool.'
+            };
+        });
     }
 
     /**
