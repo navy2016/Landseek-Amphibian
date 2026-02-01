@@ -301,19 +301,38 @@ class EmbeddingService(private val context: Context) {
             
             val results = session.run(inputs)
             
-            // Extract embedding from output
+            // Extract embedding from output with safe type checking
             // MiniLM outputs sentence embedding directly or we need to mean pool
-            val outputTensor = results[0].value as Array<*>
+            val outputValue = results[0].value
             
-            @Suppress("UNCHECKED_CAST")
-            val embeddings = when (val firstElement = outputTensor[0]) {
-                is FloatArray -> firstElement
-                is Array<*> -> {
-                    // Need to mean pool over sequence
-                    val sequenceOutput = firstElement as Array<FloatArray>
-                    meanPool(sequenceOutput, tokens.size + 2) // +2 for CLS and SEP
+            val embeddings = try {
+                when (outputValue) {
+                    is Array<*> -> {
+                        val outputTensor = outputValue
+                        when (val firstElement = outputTensor[0]) {
+                            is FloatArray -> firstElement
+                            is Array<*> -> {
+                                // Need to mean pool over sequence - safely cast with check
+                                @Suppress("UNCHECKED_CAST")
+                                val sequenceOutput = (firstElement as? Array<FloatArray>)
+                                    ?: return@withContext generateFallbackEmbedding(text)
+                                meanPool(sequenceOutput, tokens.size + 2) // +2 for CLS and SEP
+                            }
+                            else -> {
+                                Log.w(TAG, "Unexpected inner output type: ${firstElement?.javaClass}")
+                                return@withContext generateFallbackEmbedding(text)
+                            }
+                        }
+                    }
+                    is FloatArray -> outputValue
+                    else -> {
+                        Log.w(TAG, "Unexpected ONNX output type: ${outputValue?.javaClass}")
+                        return@withContext generateFallbackEmbedding(text)
+                    }
                 }
-                else -> FloatArray(MINILM_EMBEDDING_DIM)
+            } catch (e: ClassCastException) {
+                Log.w(TAG, "ONNX output cast failed: ${e.message}")
+                return@withContext generateFallbackEmbedding(text)
             }
             
             // Normalize
@@ -328,10 +347,20 @@ class EmbeddingService(private val context: Context) {
     
     /**
      * Simple tokenization - converts text to token IDs
-     * Note: This is a simplified version. Production should use proper WordPiece tokenizer
+     * 
+     * ⚠️ IMPORTANT: This is a TEMPORARY simplified implementation using hash-based IDs.
+     * For production use, replace with a proper WordPiece tokenizer that matches 
+     * the all-MiniLM-L6-v2 vocabulary. The current implementation will produce
+     * embeddings that do not semantically match those from the actual model.
+     * 
+     * Recommended solutions:
+     * 1. Use HuggingFace's tokenizers library with ONNX
+     * 2. Port the Python tokenizer to Kotlin
+     * 3. Use a pre-tokenized vocab file
      */
     private fun simpleTokenize(text: String): LongArray {
         // Simple word-based tokenization with hash-based IDs
+        // WARNING: This produces embeddings that won't match true MiniLM semantics
         val words = text.lowercase()
             .replace(Regex("[^a-z0-9\\s]"), " ")
             .split("\\s+".toRegex())

@@ -311,7 +311,10 @@ class DocumentParserService(private val context: Context) {
                     title = properties?.title,
                     author = properties?.creator,
                     subject = properties?.subject,
-                    pageCount = document.paragraphs.size / 30,  // Estimate
+                    // Estimate page count: ~30 paragraphs per page is a rough approximation
+                    // based on standard document formatting (12pt font, single-spaced).
+                    // DOCX format doesn't store page count natively as it's rendering-dependent.
+                    pageCount = (document.paragraphs.size / 30).coerceAtLeast(1),
                     wordCount = text.split("\\s+".toRegex()).size,
                     characterCount = text.length,
                     documentType = DocumentType.DOCX,

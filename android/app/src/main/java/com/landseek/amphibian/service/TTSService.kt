@@ -294,16 +294,23 @@ class TTSService(private val context: Context) {
             }
             
             // Select based on voice preference (female/male)
+            // Use word boundary matching to avoid "female" matching "male"
             val selectedVoice = if (voice.isFemale) {
                 filteredVoices.filter { v -> 
-                    v.name.lowercase().contains("female") ||
-                    v.name.lowercase().contains("woman") ||
-                    !v.name.lowercase().contains("male")
+                    val nameLower = v.name.lowercase()
+                    nameLower.contains("female") ||
+                    nameLower.contains("woman") ||
+                    nameLower.contains("fem") ||
+                    // Only exclude if it contains standalone "male" (not "female")
+                    (!nameLower.contains(Regex("\\bmale\\b")) && !nameLower.contains("female"))
                 }.firstOrNull() ?: filteredVoices.firstOrNull()
             } else {
                 filteredVoices.filter { v -> 
-                    v.name.lowercase().contains("male") ||
-                    v.name.lowercase().contains("man")
+                    val nameLower = v.name.lowercase()
+                    // Match standalone "male" but not "female"
+                    (nameLower.contains(Regex("\\bmale\\b")) && !nameLower.contains("female")) ||
+                    nameLower.contains("man") ||
+                    nameLower.contains("masc")
                 }.firstOrNull() ?: filteredVoices.firstOrNull()
             }
             
