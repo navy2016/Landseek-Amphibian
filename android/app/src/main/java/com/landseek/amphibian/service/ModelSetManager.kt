@@ -109,7 +109,7 @@ class ModelSetManager(private val context: Context) {
                 ║ Device Tier: ${capabilities.deviceTier.name.padEnd(41)}║
                 ║ Model Set: ${recommendedSet.name.padEnd(43)}║
                 ║ Available Models: ${_availableModels.value.size.toString().padEnd(36)}║
-                ║ OpenClaw: ${if (recommendedSet.openClawConfig.enableDistributedInference) "Enabled" else "Disabled".padEnd(44)}║
+                ║ OpenClaw: ${(if (recommendedSet.openClawConfig.enableDistributedInference) "Enabled" else "Disabled").padEnd(44)}║
                 ╚════════════════════════════════════════════════════════════╝
             """.trimIndent())
             

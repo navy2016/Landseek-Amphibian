@@ -85,7 +85,7 @@ class ModelLoader extends EventEmitter {
             console.log(`📋 Selected model set: ${this.currentModelSet.name}`);
             
             // Setup OpenClaw if configured
-            if (this.openClawPool || this.currentModelSet.openClawConfig.enableDistributedInference) {
+            if (this.openClawPool || this.currentModelSet?.openClawConfig?.enableDistributedInference) {
                 await this.setupOpenClawIntegration();
             }
             

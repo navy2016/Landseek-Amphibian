@@ -182,16 +182,18 @@ Return ONLY a JSON object with this format:
 
                             if (decision.tool === 'local' || this.brains[decision.tool]) {
                                 const model = this.getOptimalModel(decision.tool);
+                                // Default complexity to 'medium' if LLM doesn't provide it
+                                const complexity = decision.complexity || 'medium';
                                 const useDistributed = this.shouldUseDistributed(
                                     decision.tool, 
-                                    decision.complexity || 'medium'
+                                    complexity
                                 );
                                 
                                 return {
                                     toolName: decision.tool,
                                     confidence: decision.confidence,
                                     reason: 'LLM Classification',
-                                    complexity: decision.complexity,
+                                    complexity: complexity,
                                     optimalModel: model?.name,
                                     modelConfig: model,
                                     useDistributed

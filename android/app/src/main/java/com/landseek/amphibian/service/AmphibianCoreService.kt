@@ -195,7 +195,7 @@ class AmphibianCoreService : Service() {
                     ║ Backend: ${backendName.padEnd(45)}║
                     ║ Device Tier: ${caps.deviceTier.name.padEnd(41)}║
                     ║ Model Set: ${modelSetName.padEnd(43)}║
-                    ║ OpenClaw: ${if (openClawEnabled) "Enabled" else "Disabled".padEnd(44)}║
+                    ║ OpenClaw: ${(if (openClawEnabled) "Enabled" else "Disabled").padEnd(44)}║
                     ║ Services: $readyCount/$totalCount initialized                              ║
                     ╠════════════════════════════════════════════════════════════╣
                     ║ LLM: ${if (llmReady) "✅" else "❌"} | RAG: ${if (ragReady) "✅" else "❌"} | TTS: ${if (ttsReady) "✅" else "❌"} | Docs: ${if (docReady) "✅" else "❌"} | Vision: ${if (visionReady) "✅" else "❌"}  ║
