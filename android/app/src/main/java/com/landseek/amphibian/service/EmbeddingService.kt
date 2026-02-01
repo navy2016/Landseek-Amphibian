@@ -288,9 +288,19 @@ class EmbeddingService(private val context: Context) {
         // Create ONNX tensors
         val shape = longArrayOf(1, MAX_SEQ_LENGTH.toLong())
         
-        val inputIdsTensor = OnnxTensor.createTensor(env, LongBuffer.wrap(inputIds), shape)
-        val attentionMaskTensor = OnnxTensor.createTensor(env, LongBuffer.wrap(attentionMask), shape)
-        val tokenTypeIdsTensor = OnnxTensor.createTensor(env, LongBuffer.wrap(tokenTypeIds), shape)
+        // Note: Using createTensor directly with arrays instead of LongBuffer for compatibility
+        // The LongBuffer signature isn't available in all versions of the Android ONNX runtime binding
+        // Using `createTensor(env, Object)` which handles primitive arrays.
+        // For batch size 1 and explicit shape, we might need nested arrays if pure reshape isn't available.
+        // [1, MAX_SEQ_LENGTH]
+        val inputIds2D = Array(1) { inputIds }
+        val attentionMask2D = Array(1) { attentionMask }
+        val tokenTypeIds2D = Array(1) { tokenTypeIds }
+
+        val inputIdsTensor = OnnxTensor.createTensor(env, inputIds2D)
+        val attentionMaskTensor = OnnxTensor.createTensor(env, attentionMask2D)
+        val tokenTypeIdsTensor = OnnxTensor.createTensor(env, tokenTypeIds2D)
+
         
         try {
             val inputs = mapOf(

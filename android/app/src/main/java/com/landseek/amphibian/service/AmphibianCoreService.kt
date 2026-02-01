@@ -554,7 +554,7 @@ class AmphibianCoreService : Service() {
      * Get TTS configuration
      */
     fun getTTSConfiguration(): TTSService.TTSConfiguration {
-        return ttsService.getConfiguration()
+        return ttsService.getConfiguration() ?: TTSService.TTSConfiguration(1.0f, false)
     }
     
     /**
@@ -678,7 +678,7 @@ class AmphibianCoreService : Service() {
             isConnected = isConnected,
             llmReady = llmService.isReady(),
             llmModel = llmService.getCurrentModel(),
-            ttsReady = ttsService.isReady.value,
+            ttsReady = ttsService.isReady.value ?: false,
             visionStatus = visionService.getStatus(),
             ragMemoryCount = ragService.getMemoryCount(),
             ragUsingRealEmbeddings = ragService.isUsingRealEmbeddings(),
