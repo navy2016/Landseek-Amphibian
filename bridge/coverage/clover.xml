@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<coverage generated="1769963923792" clover="3.2.0">
+  <project timestamp="1769963923792" name="All files">
+    <metrics statements="72" coveredstatements="40" conditionals="45" coveredconditionals="18" methods="16" coveredmethods="8" elements="133" coveredelements="66" complexity="0" loc="72" ncloc="72" packages="1" files="2" classes="2"/>
+    <file name="calendar_adapter.js" path="/home/runner/work/Landseek-Amphibian/Landseek-Amphibian/bridge/mcp_servers/calendar_adapter.js">
+      <metrics statements="34" coveredstatements="19" conditionals="17" coveredconditionals="8" methods="8" coveredmethods="4"/>
+      <line num="16" count="1" type="stmt"/>
+      <line num="20" count="1" type="stmt"/>
+      <line num="23" count="1" type="stmt"/>
+      <line num="181" count="7" type="cond" truecount="2" falsecount="0"/>
+      <line num="182" count="7" type="stmt"/>
+      <line num="194" count="7" type="stmt"/>
+      <line num="195" count="7" type="stmt"/>
+      <line num="199" count="7" type="stmt"/>
+      <line num="200" count="5" type="stmt"/>
+      <line num="203" count="5" type="cond" truecount="6" falsecount="3"/>
+      <line num="206" count="1" type="stmt"/>
+      <line num="222" count="1" type="stmt"/>
+      <line num="233" count="0" type="stmt"/>
+      <line num="244" count="0" type="stmt"/>
+      <line num="251" count="1" type="stmt"/>
+      <line num="259" count="1" type="stmt"/>
+      <line num="271" count="1" type="stmt"/>
+      <line num="281" count="0" type="stmt"/>
+      <line num="292" count="7" type="stmt"/>
+      <line num="293" count="0" type="stmt"/>
+      <line num="297" count="7" type="stmt"/>
+      <line num="298" count="0" type="stmt"/>
+      <line num="300" count="0" type="stmt"/>
+      <line num="302" count="0" type="stmt"/>
+      <line num="304" count="0" type="stmt"/>
+      <line num="305" count="0" type="cond" truecount="0" falsecount="2"/>
+      <line num="306" count="0" type="stmt"/>
+      <line num="310" count="0" type="cond" truecount="0" falsecount="2"/>
+      <line num="312" count="0" type="stmt"/>
+      <line num="319" count="0" type="stmt"/>
+      <line num="320" count="0" type="stmt"/>
+      <line num="332" count="0" type="stmt"/>
+      <line num="336" count="2" type="stmt"/>
+      <line num="340" count="1" type="stmt"/>
+    </file>
+    <file name="email_adapter.js" path="/home/runner/work/Landseek-Amphibian/Landseek-Amphibian/bridge/mcp_servers/email_adapter.js">
+      <metrics statements="38" coveredstatements="21" conditionals="28" coveredconditionals="10" methods="8" coveredmethods="4"/>
+      <line num="17" count="1" type="stmt"/>
+      <line num="21" count="1" type="stmt"/>
+      <line num="24" count="1" type="stmt"/>
+      <line num="300" count="10" type="cond" truecount="2" falsecount="0"/>
+      <line num="301" count="10" type="stmt"/>
+      <line num="313" count="10" type="stmt"/>
+      <line num="314" count="10" type="stmt"/>
+      <line num="318" count="10" type="stmt"/>
+      <line num="319" count="7" type="stmt"/>
+      <line num="322" count="7" type="cond" truecount="7" falsecount="9"/>
+      <line num="324" count="1" type="stmt"/>
+      <line num="355" count="1" type="stmt"/>
+      <line num="376" count="1" type="stmt"/>
+      <line num="385" count="0" type="stmt"/>
+      <line num="393" count="1" type="stmt"/>
+      <line num="412" count="0" type="stmt"/>
+      <line num="419" count="1" type="stmt"/>
+      <line num="432" count="0" type="stmt"/>
+      <line num="439" count="1" type="stmt"/>
+      <line num="447" count="0" type="stmt"/>
+      <line num="455" count="1" type="stmt"/>
+      <line num="471" count="0" type="stmt"/>
+      <line num="482" count="10" type="stmt"/>
+      <line num="483" count="0" type="stmt"/>
+      <line num="487" count="10" type="stmt"/>
+      <line num="488" count="0" type="stmt"/>
+      <line num="490" count="0" type="stmt"/>
+      <line num="492" count="0" type="stmt"/>
+      <line num="494" count="0" type="stmt"/>
+      <line num="495" count="0" type="cond" truecount="0" falsecount="2"/>
+      <line num="496" count="0" type="stmt"/>
+      <line num="500" count="0" type="cond" truecount="0" falsecount="2"/>
+      <line num="502" count="0" type="stmt"/>
+      <line num="509" count="0" type="stmt"/>
+      <line num="510" count="0" type="stmt"/>
+      <line num="522" count="0" type="stmt"/>
+      <line num="526" count="3" type="stmt"/>
+      <line num="530" count="1" type="stmt"/>
+    </file>
+  </project>
+</coverage>
