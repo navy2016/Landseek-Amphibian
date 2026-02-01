@@ -234,8 +234,15 @@ class LocalLLMService(private val context: Context) {
             }
         }
     }
+    
+    // Default max tokens constant
+    private companion object {
+        const val DEFAULT_MAX_TOKENS = 1024
+    }
 
-    suspend fun generate(prompt: String, requestedMaxTokens: Int = maxTokens): String {
+    suspend fun generate(prompt: String, requestedMaxTokens: Int = DEFAULT_MAX_TOKENS): String {
+        val effectiveMaxTokens = if (requestedMaxTokens == DEFAULT_MAX_TOKENS) maxTokens else requestedMaxTokens
+        
         return withContext(Dispatchers.Default) {
             if (llmInference == null) {
                 // Try to init if missing

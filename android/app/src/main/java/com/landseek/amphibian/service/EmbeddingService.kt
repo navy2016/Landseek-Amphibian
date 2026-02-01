@@ -29,13 +29,16 @@ class EmbeddingService(private val context: Context) {
     
     private var textEmbedder: TextEmbedder? = null
     private var isInitialized = false
+    private var actualEmbeddingDim = EMBEDDING_DIM
     
     // TPU capability service for hardware detection
     private val tpuService = TPUCapabilityService(context)
     
     // Model configuration
+    // Supports USE Lite (512-dim) or other sentence embedding models
+    // Dimension is auto-detected from the model at runtime
     private val MODEL_FILENAME = "universal_sentence_encoder.tflite"
-    private val EMBEDDING_DIM = 512  // USE outputs 512-dim vectors
+    private val EMBEDDING_DIM = 512  // Default for USE Lite
     
     // Fallback embedding dimension for mock mode
     private val MOCK_EMBEDDING_DIM = 384

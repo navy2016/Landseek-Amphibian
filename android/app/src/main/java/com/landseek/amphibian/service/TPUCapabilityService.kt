@@ -131,7 +131,13 @@ class TPUCapabilityService(private val context: Context) {
         val model = Build.MODEL.lowercase()
         val device = Build.DEVICE.lowercase()
         val hardware = Build.HARDWARE.lowercase()
-        val soc = Build.SOC_MODEL.lowercase()
+        
+        // Build.SOC_MODEL requires API 31+
+        val soc = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            Build.SOC_MODEL.lowercase()
+        } else {
+            ""
+        }
         
         Log.d(TAG, "Device: $device, Model: $model, Hardware: $hardware, SOC: $soc")
         

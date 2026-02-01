@@ -27,6 +27,9 @@ class LocalRAGService(private val context: Context) {
     private val MEMORY_FILE = "rag_memory.json"
     private val MIND_MAP_FILE = "rag_graph.json"
     
+    // Similarity threshold for auto-linking memories
+    private val SIMILARITY_THRESHOLD = 0.5f
+    
     // TPU-accelerated embedding service
     private var embeddingService: EmbeddingService? = null
     private var useRealEmbeddings = false
@@ -66,12 +69,12 @@ class LocalRAGService(private val context: Context) {
             
             // Auto-link to related concepts (Simple Mind Map Logic)
             val related = search(text, limit = 1)
-            if (related.isNotEmpty() && related[0].second > 0.5f) {  // Only link if reasonably similar
+            if (related.isNotEmpty() && related[0].second > SIMILARITY_THRESHOLD) {
                 linkNodes(id, related[0].first.id)
             }
             
             saveMemories()
-            Log.d(TAG, "Added memory: ${text.take(50)}... (similarity threshold: 0.5)")
+            Log.d(TAG, "Added memory: ${text.take(50)}... (threshold: $SIMILARITY_THRESHOLD)")
             return@withContext id
         }
     }
