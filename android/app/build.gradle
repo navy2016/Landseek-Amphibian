@@ -137,7 +137,7 @@ dependencies {
     implementation 'org.apache.poi:poi-ooxml:5.2.5'
     
     // Work Manager for background tasks
-    implementation 'androidx.work:work-runtime-ktx:2.9.0'
+    implementation 'androidx.work:work-runtime-ktx:2.11.1'
     
     // DataStore for preferences
     implementation 'androidx.datastore:datastore-preferences:1.2.0'
