@@ -76,6 +76,7 @@ const { PersonalityManager } = require('./personalities');
 const { DocumentManager } = require('./documents');
 const { CommandProcessor } = require('./commands');
 const { P2PHost, P2PClient } = require('./p2p');
+const ModelManager = require('./model_manager');
 
 // Collective Mode
 const { CollectiveCoordinator, CollectiveBrain, CollectiveClient } = require('./collective');
@@ -96,16 +97,20 @@ const memory = new ConversationMemory(50); // Extended memory for complex tasks
 // Initialize Landseek Features
 const personalities = new PersonalityManager(path.join(STORAGE_PATH, 'personalities.json'));
 const documents = new DocumentManager(path.join(STORAGE_PATH, 'documents'));
+const identityManager = new IdentityManager(path.join(STORAGE_PATH, 'identity'));
+
 const commandProcessor = new CommandProcessor({
     personalities,
     documents,
     localBrain,
-    memory
+    memory,
+    identityManager
 });
 
 // Load saved state
 personalities.load();
 documents.loadDocumentIndex();
+identityManager.load();
 
 // Android Bridge Callback (injected via JNI in production)
 let androidToolCallback = global.androidBridgeCallback || async function(toolName, args) {
@@ -119,6 +124,11 @@ let androidToolCallback = global.androidBridgeCallback || async function(toolNam
         simulated: true  // Flag to indicate this was a simulated response
     };
 };
+
+// Initialize Model Manager
+const modelManager = new ModelManager(async (tool, args) => {
+    return androidToolCallback(tool, args);
+});
 
 // Start MCP Servers (Brain Modules)
 async function startBrains() {
@@ -421,7 +431,12 @@ async function streamCollectiveResponse(task, onLog) {
 }
 
 // Start Server
-const server = http.createServer((req, res) => {
+const server = http.createServer(async (req, res) => {
+    // Try to handle identity routes first
+    if (await handleIdentityRoutes(req, res, identityManager)) {
+        return;
+    }
+    
     res.writeHead(200);
     res.end('Amphibian Bridge Active 🐸');
 });
@@ -600,6 +615,41 @@ async function handleCommandAction(action, data) {
         case 'recall':
             const recallResult = await androidToolCallback('recall', { query: data.query });
             send(EVENTS.COMMAND_RESULT, { message: recallResult.output || 'No memories found.' });
+            break;
+
+        case 'list_models':
+            try {
+                const list = await modelManager.listModels();
+                let msg = "**Available Models:**\n";
+                list.available.forEach(m => {
+                    const status = m.installed ? "✅ Installed" : (m.isDownloading ? `⬇️ ${m.progress}%` : "☁️ Cloud");
+                    const size = m.size ? formatSize(m.size) : 'Unknown size';
+                    msg += `- **${m.name}** (${m.id})\n  ${status} | ${size}\n  Filename: \`${m.filename}\`\n`;
+                });
+                send(EVENTS.COMMAND_RESULT, { message: msg });
+            } catch (e) {
+                send(EVENTS.ERROR, { message: `Failed to list models: ${e.message}` });
+            }
+            break;
+            
+        case 'download_model':
+            send(EVENTS.COMMAND_RESULT, { message: `⬇️ Starting download for ${data.modelId}...` });
+            modelManager.downloadModel(data.modelId, (progress) => {
+                 // Optional: Send progress updates if needed, but might spam
+            }).then(() => {
+                 send(EVENTS.COMMAND_RESULT, { message: `✅ Download complete for ${data.modelId}` });
+            }).catch(e => {
+                 send(EVENTS.ERROR, { message: `Download failed: ${e.message}` });
+            });
+            break;
+            
+        case 'switch_model':
+            try {
+                const res = await modelManager.switchModel(data.modelName);
+                send(EVENTS.COMMAND_RESULT, { message: res.success ? `✅ Switched to ${data.modelName}` : `❌ Failed: ${res.output}` });
+            } catch (e) {
+                send(EVENTS.ERROR, { message: `Switch failed: ${e.message}` });
+            }
             break;
 
         // ============================================
@@ -1052,6 +1102,14 @@ function send(type, payload) {
     if (activeSocket && activeSocket.readyState === WebSocket.OPEN) {
         activeSocket.send(JSON.stringify({ type, payload }));
     }
+}
+
+function formatSize(bytes) {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
 
 server.listen(PORT, '127.0.0.1', () => {
