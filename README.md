@@ -4,6 +4,49 @@
 
 > "Live on the land (Android/Desktop UI) and in the water (System Shell)."
 
+## Quick Start (Desktop)
+
+```bash
+# 1. Clone and setup
+git clone <repo-url> && cd Landseek-Amphibian
+./setup.sh
+
+# 2. Install Ollama (if not already installed)
+curl -fsSL https://ollama.com/install.sh | sh   # Linux
+# macOS: brew install ollama
+# Windows: https://ollama.com/download
+
+# 3. Start Ollama and pull a model
+ollama serve &
+ollama pull gemma3:1b
+
+# 4. Run the app
+./run.sh
+```
+
+Once running, type any message to chat. Use `/help` for commands, `/personalities` to see AI personalities, `/mcp` to list connected tools.
+
+### Adding MCP Abilities
+
+Edit `mcp.json` to connect external tools (file system, web search, databases, etc.):
+
+```json
+{
+  "mcpServers": {
+    "brave-search": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-brave-search"],
+      "env": { "BRAVE_API_KEY": "your-key" },
+      "enabled": true
+    }
+  }
+}
+```
+
+Any [MCP-compatible server](https://github.com/modelcontextprotocol/servers) works. Restart the app after editing.
+
+---
+
 ## The Vision
 
 Landseek-Amphibian is a complete **cross-platform AI agent** that merges **Landseek** (the beautiful, TPU-optimized chat UI with 10 AI personalities) with **OpenClaw** (the powerful, tool-using agent runtime) into a **single, installable application** for Android, Windows, Linux, and macOS.

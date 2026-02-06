@@ -134,38 +134,44 @@ const modelManager = new ModelManager(async (tool, args) => {
 async function startBrains() {
     try {
         console.log('🧠 Starting Amphibian Brain Modules...');
-        
+
         // Register Local Brain (TPU/Ollama)
         router.register('local', true);
         console.log('✅ Local Brain (TPU) registered');
-        
-        // Connect Google Jules (Coding Agent)
-        if (process.env.JULES_API_KEY) {
+
+        // Load MCP servers from mcp.json config
+        const mcpResult = await host.connectFromConfig();
+
+        // Register connected MCP servers with the router
+        for (const [name] of host.clients) {
+            router.register(name, true);
+        }
+
+        // Also support legacy env var approach for Jules/Stitch/Context7
+        if (process.env.JULES_API_KEY && !host.clients.has('jules')) {
             await host.connectStdioServer('jules', 'node', ['./mcp_servers/jules_adapter.js']);
             router.register('jules', true);
             console.log('✅ Jules (Coding Agent) connected');
         }
-        
-        // Connect Google Stitch (UI Designer)
-        if (process.env.STITCH_API_KEY) {
+
+        if (process.env.STITCH_API_KEY && !host.clients.has('stitch')) {
             await host.connectStdioServer('stitch', 'node', ['./mcp_servers/stitch_adapter.js']);
             router.register('stitch', true);
             console.log('✅ Stitch (UI Designer) connected');
         }
-        
-        // Connect Context7 (Memory/RAG)
-        if (process.env.CONTEXT7_API_KEY) {
+
+        if (process.env.CONTEXT7_API_KEY && !host.clients.has('context7')) {
             await host.connectStdioServer('context7', 'node', ['./mcp_servers/context7_adapter.js']);
             router.register('context7', true);
             console.log('✅ Context7 (Memory) connected');
         }
-        
+
         // Connect Local Android System Tools
         const AndroidSystemServer = require('./android_mcp');
         const androidServer = new AndroidSystemServer(androidToolCallback);
         router.register('android', true);
         console.log('✅ Android System Tools connected');
-        
+
         console.log('🦎 All Brain Modules Connected! Amphibian ready.');
     } catch (e) {
         console.error('❌ Failed to connect brains:', e);

@@ -1,5 +1,6 @@
 # Node.js
 bridge/node_modules/
+desktop/node_modules/
 node_modules/
 
 # Test coverage artifacts
@@ -8,6 +9,13 @@ coverage/
 
 # Package lock (use npm ci for consistent builds)
 bridge/package-lock.json
+desktop/package-lock.json
+
+# Data directory (created at runtime)
+data/
+
+# Amphibian user state
+.amphibian/
 
 # Android Build
 android/.gradle/

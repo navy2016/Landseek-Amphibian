@@ -1,0 +1,46 @@
+{
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "./data"],
+      "description": "File system access for reading and writing local files",
+      "enabled": true
+    }
+  },
+  "_comment": "Add MCP servers here. Each entry needs 'command' and 'args'. Set 'enabled': false to disable without removing. Environment variables go in 'env'. Examples below.",
+  "_examples": {
+    "brave-search": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-brave-search"],
+      "env": { "BRAVE_API_KEY": "your-key-here" },
+      "description": "Web search via Brave Search API",
+      "enabled": false
+    },
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": { "GITHUB_PERSONAL_ACCESS_TOKEN": "your-token" },
+      "description": "GitHub repository access",
+      "enabled": false
+    },
+    "sqlite": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-sqlite", "./data/memory.db"],
+      "description": "SQLite database access",
+      "enabled": false
+    },
+    "puppeteer": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-puppeteer"],
+      "description": "Browser automation via Puppeteer",
+      "enabled": false
+    },
+    "custom-server": {
+      "command": "node",
+      "args": ["./path/to/your/mcp-server.js"],
+      "env": { "CUSTOM_VAR": "value" },
+      "description": "Your custom MCP server",
+      "enabled": false
+    }
+  }
+}
