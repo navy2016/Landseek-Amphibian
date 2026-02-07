@@ -686,14 +686,35 @@ class ExtensionMarketplace {
     }
     
     async downloadExtension(extension) {
-        // In production, this would download from extension.downloadUrl
-        // For now, create a mock structure
         const installPath = path.join(this.extensionsDir, extension.id);
         await fs.mkdir(installPath, { recursive: true });
         
-        // Create a placeholder file
-        const indexContent = `
-// ${extension.name} - Mock Extension
+        if (extension.downloadUrl) {
+            const response = await fetch(extension.downloadUrl);
+            if (!response.ok) {
+                throw new Error(`Download failed: ${response.status} ${response.statusText}`);
+            }
+            const buffer = Buffer.from(await response.arrayBuffer());
+            const archivePath = path.join(installPath, 'extension.tar.gz');
+            await fs.writeFile(archivePath, buffer);
+            
+            // Verify checksum if provided
+            if (extension.sha256) {
+                const valid = await this.verifyChecksum(archivePath, extension.sha256);
+                if (!valid) {
+                    await fs.rm(installPath, { recursive: true, force: true });
+                    throw new Error('Checksum verification failed - download may be corrupted');
+                }
+            }
+            
+            // Extract archive
+            const { execSync } = require('child_process');
+            execSync(`tar -xzf extension.tar.gz`, { cwd: installPath });
+            await fs.unlink(archivePath).catch(() => {});
+        } else {
+            // No download URL - create a minimal extension scaffold
+            const indexContent = `
+// ${extension.name} - Extension
 module.exports = class ${extension.id.replace(/-/g, '_')} {
     constructor() {
         console.log('Extension loaded: ${extension.name}');
@@ -708,15 +729,16 @@ module.exports = class ${extension.id.replace(/-/g, '_')} {
     }
 };
 `;
-        await fs.writeFile(path.join(installPath, 'index.js'), indexContent);
+            await fs.writeFile(path.join(installPath, 'index.js'), indexContent);
+        }
         
         return installPath;
     }
     
     async verifyChecksum(filePath, expectedSha256) {
-        // In production, calculate actual checksum
-        // For now, return true
-        return true;
+        const fileBuffer = await fs.readFile(filePath);
+        const hash = crypto.createHash('sha256').update(fileBuffer).digest('hex');
+        return hash === expectedSha256;
     }
     
     getExtensionStatus(extensionId, catalogVersion) {
