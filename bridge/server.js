@@ -52,14 +52,21 @@ async function startBrains() {
             { name: 'context7', apiKey: process.env.CONTEXT7_API_KEY, adapter: './mcp_servers/context7_adapter.js' }
         ];
 
-        const connections = brainConfigs
-            .filter(config => config.apiKey)
-            .map(config =>
-                host.connectStdioServer(config.name, 'node', [config.adapter])
-                    .then(() => router.register(config.name, true))
-            );
+        const filteredConfigs = brainConfigs.filter(config => config.apiKey);
 
-        await Promise.all(connections);
+        const connections = filteredConfigs.map(config =>
+            host.connectStdioServer(config.name, 'node', [config.adapter])
+                .then(() => router.register(config.name, true))
+        );
+
+        const results = await Promise.allSettled(connections);
+
+        results.forEach((result, index) => {
+            const config = filteredConfigs[index];
+            if (result.status === 'rejected') {
+                console.error(`Failed to connect brain "${config.name}":`, result.reason);
+            }
+        });
         
         // Connect Local Android System
         const AndroidSystemServer = require('./android_mcp');
