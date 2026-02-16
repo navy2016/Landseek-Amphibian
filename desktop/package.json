@@ -1,0 +1,63 @@
+{
+  "name": "amphibian-desktop",
+  "version": "1.0.0",
+  "description": "Landseek-Amphibian Desktop Client - Cross-platform AI agent with collective training and inference",
+  "main": "main.js",
+  "bin": {
+    "amphibian": "./main.js"
+  },
+  "scripts": {
+    "start": "node main.js",
+    "build:win": "pkg . --targets node18-win-x64 --output dist/amphibian-win.exe",
+    "build:linux": "pkg . --targets node18-linux-x64 --output dist/amphibian-linux",
+    "build:mac": "pkg . --targets node18-macos-x64 --output dist/amphibian-macos",
+    "build:all": "npm run build:win && npm run build:linux && npm run build:mac",
+    "test": "echo \"Tests not yet implemented\" && exit 0"
+  },
+  "pkg": {
+    "assets": [
+      "../bridge/**/*.js",
+      "../bridge/**/*.json",
+      "../bridge/node_modules/**/*",
+      "../mcp.json"
+    ],
+    "scripts": [
+      "main.js",
+      "training/coordinator.js",
+      "training/worker.js",
+      "../bridge/mcp_host.js",
+      "../bridge/brains/*.js",
+      "../bridge/collective/*.js",
+      "../bridge/personalities/*.js",
+      "../bridge/commands/*.js",
+      "../bridge/models/*.js",
+      "../bridge/model_manager/*.js",
+      "../bridge/memory_format/*.js",
+      "../bridge/documents/*.js",
+      "../bridge/p2p/*.js",
+      "../bridge/openclaw/*.js",
+      "../bridge/identity/*.js"
+    ]
+  },
+  "keywords": [
+    "ai",
+    "llm",
+    "distributed",
+    "training",
+    "inference",
+    "collective"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "ws": "^8.16.0",
+    "axios": "^1.6.7",
+    "chalk": "^4.1.2",
+    "commander": "^11.1.0",
+    "readline": "^1.3.0",
+    "@modelcontextprotocol/sdk": "^1.25.2"
+  },
+  "devDependencies": {
+    "pkg": "^5.8.1"
+  }
+}

@@ -1,23 +1,59 @@
 package com.landseek.amphibian.service
 
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.app.Service
+import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
+import android.net.Uri
+import android.os.Binder
+import android.os.Build
 import android.os.IBinder
 import android.util.Log
 import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import okhttp3.*
 import org.json.JSONObject
 import java.io.File
+import java.io.FileOutputStream
 import java.util.concurrent.TimeUnit
+import com.landseek.amphibian.tools.AndroidToolManager
 
 /**
- * AmphibianCoreService
+ * AmphibianCoreService (ToolNeuron + MediaPipe + OpenClaw Integration)
  *
  * This Foreground Service is responsible for:
  * 1. Extracting the Node.js runtime from assets (if needed).
  * 2. Spawning the Node.js process ("The Brain").
  * 3. Maintaining the WebSocket bridge to the local Node server.
- * 4. Exposing the Agent's capabilities to the UI.
+ * 4. Handling Android tool callbacks from the Agent.
+ * 5. Managing on-device AI via TPU/MediaPipe with Pixel 10 optimization.
+ * 6. Text-to-Speech for voice output (ToolNeuron pattern)
+ * 7. Document parsing for RAG (PDF, Word, Excel)
+ * 8. Vision tasks (Object Detection, Face Detection, Hand Tracking)
+ * 9. **Optimized AI Model Sets with full OpenClaw integration**
+ * 
+ * TPU Support:
+ * - Pixel 10: Tensor G5 with INT4 quantization (Best)
+ * - Pixel 9: Tensor G4 with INT4 quantization
+ * - Pixel 8: Tensor G3 TPU
+ * - Pixel 7: Tensor G2 TPU
+ * - Pixel 6: Tensor G1 TPU
+ * - Other: GPU/CPU fallback
+ * 
+ * Model Sets:
+ * - FLAGSHIP_FULL: Maximum capability for Pixel 10
+ * - HIGH_PERFORMANCE: Optimized for Pixel 8-9
+ * - BALANCED: Mid-range devices
+ * - EFFICIENCY: Battery-optimized for lower-end
+ * - DISTRIBUTED: OpenClaw collective inference
+ * 
+ * @see https://github.com/Siddhesh2377/ToolNeuron
+ * @see https://github.com/google-ai-edge/mediapipe
  */
 class AmphibianCoreService : Service() {
 
@@ -26,20 +62,202 @@ class AmphibianCoreService : Service() {
     private var webSocket: WebSocket? = null
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     
+    // Core Services
+    private lateinit var toolManager: AndroidToolManager
+    private lateinit var llmService: LocalLLMService
+    private lateinit var tpuService: TPUCapabilityService
+    private lateinit var ragService: LocalRAGService
+    
+    // ToolNeuron Integration Services
+    private lateinit var ttsService: TTSService
+    private lateinit var documentParser: DocumentParserService
+    
+    // MediaPipe Integration Services
+    private lateinit var visionService: MediaPipeVisionService
+    
+    // Optimized Model Set Management
+    private lateinit var modelSetManager: ModelSetManager
+
+    // Event Stream
+    private val _messageFlow = MutableSharedFlow<String>(replay = 0)
+    val messageFlow: SharedFlow<String> = _messageFlow.asSharedFlow()
+    
+    // Connection state
+    private var isConnected = false
+    private var reconnectAttempts = 0
+    private val maxReconnectAttempts = 5
+
+    inner class LocalBinder : Binder() {
+        fun getService(): AmphibianCoreService = this@AmphibianCoreService
+    }
+    
     // Config
     private val PORT = 3000
-    private val AUTH_TOKEN = "amphibian_local_secret" // In prod, generate this safely
+    private val NOTIFICATION_CHANNEL_ID = "amphibian_brain"
+    private val NOTIFICATION_ID = 1
+    
+    // Generate a secure random token for this session
+    private val AUTH_TOKEN: String by lazy {
+        val prefs = getSharedPreferences("amphibian_auth", Context.MODE_PRIVATE)
+        prefs.getString("auth_token", null) ?: run {
+            val newToken = java.util.UUID.randomUUID().toString()
+            prefs.edit().putString("auth_token", newToken).apply()
+            newToken
+        }
+    }
+
+    override fun onCreate() {
+        super.onCreate()
+        
+        // Initialize core services
+        tpuService = TPUCapabilityService(this)
+        llmService = LocalLLMService(this)
+        ragService = LocalRAGService(this)
+        
+        // Initialize ToolNeuron integration services
+        ttsService = TTSService(this)
+        documentParser = DocumentParserService(this)
+        
+        // Initialize MediaPipe vision service
+        visionService = MediaPipeVisionService(this)
+        
+        // Initialize Model Set Manager for optimized AI model loading
+        modelSetManager = ModelSetManager(this, llmService)
+
+        // Initialize Tool Manager
+        toolManager = AndroidToolManager(this, llmService, ragService, modelSetManager)
+        
+        createNotificationChannel()
+        
+        // Log TPU capabilities on startup
+        val caps = tpuService.detectCapabilities()
+        Log.i(TAG, "🦎 Amphibian Core created with ${caps.recommendedBackend} backend")
+    }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        Log.d(TAG, "Amphibian Service Starting...")
+        Log.d(TAG, "🐸 Amphibian Service Starting...")
+        
+        // Start as foreground service
+        startForeground(NOTIFICATION_ID, createNotification("Initializing..."))
         
         scope.launch {
-            bootstrapRuntime()
-            startNodeProcess()
-            connectBridge()
+            try {
+                // Get TPU capabilities
+                val caps = tpuService.detectCapabilities()
+                val backendName = when (caps.recommendedBackend) {
+                    TPUCapabilityService.AccelerationBackend.TPU -> 
+                        "Tensor G${caps.tensorGeneration} TPU"
+                    TPUCapabilityService.AccelerationBackend.GPU -> "GPU"
+                    TPUCapabilityService.AccelerationBackend.NNAPI -> "NNAPI"
+                    TPUCapabilityService.AccelerationBackend.CPU -> "CPU"
+                }
+                
+                updateNotification("Initializing $backendName...")
+                
+                // Initialize all services in parallel
+                val llmJob = async { llmService.initialize() }
+                val ragJob = async { ragService.initialize() }
+                val ttsJob = async { ttsService.initialize() }
+                val docJob = async { documentParser.initialize() }
+                val visionJob = async { visionService.initialize() }
+                val modelSetJob = async { modelSetManager.initialize() }
+                
+                bootstrapRuntime()
+                startNodeProcess()
+                
+                // Wait for all services
+                val llmReady = llmJob.await()
+                val ragReady = ragJob.await()
+                val ttsReady = ttsJob.await()
+                val docReady = docJob.await()
+                val visionReady = visionJob.await()
+                val modelSetReady = modelSetJob.await()
+                
+                // Log service status
+                val servicesReady = listOf(
+                    "LLM" to llmReady,
+                    "RAG" to ragReady,
+                    "TTS" to ttsReady,
+                    "Documents" to docReady,
+                    "Vision" to visionReady,
+                    "ModelSets" to modelSetReady
+                )
+                
+                val readyCount = servicesReady.count { it.second }
+                val totalCount = servicesReady.size
+                
+                // Get model set info
+                val modelSetName = modelSetManager.currentModelSet.value?.name ?: "None"
+                val openClawEnabled = modelSetManager.getOpenClawConfig()?.enableDistributedInference ?: false
+                
+                Log.i(TAG, """
+                    ╔════════════════════════════════════════════════════════════╗
+                    ║  🦎 Amphibian Core Ready! (ToolNeuron + MediaPipe + OpenClaw) ║
+                    ╠════════════════════════════════════════════════════════════╣
+                    ║ Backend: ${backendName.padEnd(45)}║
+                    ║ Device Tier: ${caps.deviceTier.name.padEnd(41)}║
+                    ║ Model Set: ${modelSetName.padEnd(43)}║
+                    ║ OpenClaw: ${(if (openClawEnabled) "Enabled" else "Disabled").padEnd(44)}║
+                    ║ Services: $readyCount/$totalCount initialized                              ║
+                    ╠════════════════════════════════════════════════════════════╣
+                    ║ LLM: ${if (llmReady) "✅" else "❌"} | RAG: ${if (ragReady) "✅" else "❌"} | TTS: ${if (ttsReady) "✅" else "❌"} | Docs: ${if (docReady) "✅" else "❌"} | Vision: ${if (visionReady) "✅" else "❌"}  ║
+                    ╚════════════════════════════════════════════════════════════╝
+                """.trimIndent())
+                
+                if (llmReady) {
+                    val model = llmService.getCurrentModel() ?: "Unknown"
+                    updateNotification("Ready ($backendName) 🦎")
+                } else {
+                    Log.w(TAG, "LLM initialization failed - running without local AI")
+                    updateNotification("Ready (Limited) ⚠️")
+                }
+                
+                delay(2000) // Give Node time to start
+                connectBridge()
+                
+            } catch (e: Exception) {
+                Log.e(TAG, "Service startup failed", e)
+                updateNotification("Error: ${e.message}")
+            }
         }
 
         return START_STICKY
+    }
+
+    private fun createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                NOTIFICATION_CHANNEL_ID,
+                "Amphibian Brain",
+                NotificationManager.IMPORTANCE_LOW
+            ).apply {
+                description = "On-device AI Agent Service"
+            }
+            val manager = getSystemService(NotificationManager::class.java)
+            manager.createNotificationChannel(channel)
+        }
+    }
+
+    private fun createNotification(status: String): Notification {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            Notification.Builder(this, NOTIFICATION_CHANNEL_ID)
+                .setContentTitle("Amphibian Agent")
+                .setContentText(status)
+                .setSmallIcon(android.R.drawable.ic_menu_info_details)
+                .build()
+        } else {
+            @Suppress("DEPRECATION")
+            Notification.Builder(this)
+                .setContentTitle("Amphibian Agent")
+                .setContentText(status)
+                .setSmallIcon(android.R.drawable.ic_menu_info_details)
+                .build()
+        }
+    }
+
+    private fun updateNotification(status: String) {
+        val manager = getSystemService(NotificationManager::class.java)
+        manager.notify(NOTIFICATION_ID, createNotification(status))
     }
 
     private fun bootstrapRuntime() {
@@ -47,17 +265,70 @@ class AmphibianCoreService : Service() {
         if (!binDir.exists()) binDir.mkdirs()
 
         val nodeBin = File(binDir, "node")
+        val openclawDir = File(filesDir, "openclaw/bridge")
         
-        // Simulating extraction logic
+        // Extract Node binary from assets
         if (!nodeBin.exists()) {
             Log.d(TAG, "Extracting Node binary from assets...")
-            // TODO: AssetManager.open("node-bin/node").copyTo(nodeBin)
-            // nodeBin.setExecutable(true)
+            try {
+                assets.open("node-bin/node").use { inputStream ->
+                    FileOutputStream(nodeBin).use { outputStream ->
+                        inputStream.copyTo(outputStream)
+                    }
+                }
+                if (nodeBin.setExecutable(true)) {
+                    Log.d(TAG, "✅ Node binary extracted and made executable.")
+                } else {
+                    Log.w(TAG, "⚠️ Failed to make Node binary executable.")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to extract Node binary", e)
+            }
+        } else {
+            // Ensure executable if it already exists
+            try {
+                nodeBin.setExecutable(true)
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to set executable permission on existing binary", e)
+            }
+        }
+        
+        // Extract bridge scripts from assets
+        if (!openclawDir.exists()) {
+            openclawDir.mkdirs()
+            extractAssetFolder("bridge", openclawDir)
+        }
+    }
+    
+    private fun extractAssetFolder(assetPath: String, targetDir: File) {
+        try {
+            val files = assets.list(assetPath) ?: return
+            for (file in files) {
+                val assetFilePath = "$assetPath/$file"
+                val targetFile = File(targetDir, file)
+                
+                // Check if it's a directory
+                val subFiles = assets.list(assetFilePath)
+                if (subFiles != null && subFiles.isNotEmpty()) {
+                    targetFile.mkdirs()
+                    extractAssetFolder(assetFilePath, targetFile)
+                } else {
+                    // It's a file
+                    assets.open(assetFilePath).use { input ->
+                        FileOutputStream(targetFile).use { output ->
+                            input.copyTo(output)
+                        }
+                    }
+                }
+            }
+            Log.d(TAG, "✅ Extracted asset folder: $assetPath")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to extract assets from $assetPath", e)
         }
     }
 
     private fun startNodeProcess() {
-        Log.d(TAG, "Spawning Node.js process...")
+        Log.d(TAG, "🚀 Spawning Node.js process...")
         try {
             val binDir = File(filesDir, "bin")
             val scriptPath = File(filesDir, "openclaw/bridge/server.js").absolutePath
@@ -70,25 +341,32 @@ class AmphibianCoreService : Service() {
             val env = pb.environment()
             env["AMPHIBIAN_PORT"] = PORT.toString()
             env["AMPHIBIAN_TOKEN"] = AUTH_TOKEN
-            // Pass Android-specific paths for tool access
             env["ANDROID_FILES_DIR"] = filesDir.absolutePath
+            env["OLLAMA_URL"] = "http://127.0.0.1:11434"
+            env["TPU_MODEL"] = "gemma:3-4b-it"
             
             pb.directory(filesDir)
+            pb.redirectErrorStream(true)
             nodeProcess = pb.start()
             
-            Log.d(TAG, "Node process spawned! PID: ${getProcessId(nodeProcess)}")
+            // Log Node output in background
+            scope.launch {
+                nodeProcess?.inputStream?.bufferedReader()?.forEachLine { line ->
+                    Log.d(TAG, "[Node] $line")
+                }
+            }
+            
+            Log.d(TAG, "✅ Node process spawned! PID: ${getProcessId(nodeProcess)}")
             
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to spawn node process", e)
+            Log.e(TAG, "❌ Failed to spawn node process", e)
         }
     }
 
     private fun connectBridge() {
-        // Wait a moment for Node to boot
-        Thread.sleep(2000)
-        
         val client = OkHttpClient.Builder()
             .readTimeout(0, TimeUnit.MILLISECONDS)
+            .pingInterval(30, TimeUnit.SECONDS)
             .build()
 
         val request = Request.Builder()
@@ -98,47 +376,461 @@ class AmphibianCoreService : Service() {
 
         webSocket = client.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) {
-                Log.d(TAG, "Connected to Amphibian Bridge! 🐸")
+                Log.d(TAG, "🐸 Connected to Amphibian Bridge!")
+                isConnected = true
+                reconnectAttempts = 0
+                scope.launch {
+                    _messageFlow.emit("{\"type\":\"STATUS\",\"status\":\"Connected to Agent\"}")
+                }
             }
 
             override fun onMessage(webSocket: WebSocket, text: String) {
-                Log.d(TAG, "Agent Says: $text")
-                // TODO: Broadcast this to the UI via LiveData/Flow
+                Log.d(TAG, "📥 Agent Message: ${text.take(200)}")
+                handleAgentMessage(text)
             }
 
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-                Log.e(TAG, "Bridge connection failed", t)
+                Log.e(TAG, "❌ Bridge connection failed: ${t.message}", t)
+                isConnected = false
+                
+                // Attempt reconnection
+                if (reconnectAttempts < maxReconnectAttempts) {
+                    reconnectAttempts++
+                    scope.launch {
+                        delay(2000L * reconnectAttempts)
+                        connectBridge()
+                    }
+                }
+            }
+            
+            override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+                Log.d(TAG, "Bridge closed: $reason")
+                isConnected = false
             }
         })
     }
     
+    private fun handleAgentMessage(text: String) {
+        scope.launch {
+            try {
+                val json = JSONObject(text)
+                val type = json.optString("type", "")
+                
+                when (type) {
+                    "TOOL_REQUEST" -> {
+                        // Handle tool request from Node.js agent
+                        val payload = json.getJSONObject("payload")
+                        val toolName = payload.getString("tool")
+                        val args = payload.getJSONObject("args")
+                        
+                        val result = toolManager.executeTool(toolName, args)
+                        
+                        // Send result back
+                        val response = JSONObject().apply {
+                            put("type", "TOOL_RESULT")
+                            put("payload", JSONObject().apply {
+                                put("tool", toolName)
+                                put("success", result.success)
+                                put("output", result.output)
+                            })
+                        }
+                        webSocket?.send(response.toString())
+                    }
+                    else -> {
+                        // Forward to UI
+                        _messageFlow.emit(text)
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error handling agent message", e)
+                _messageFlow.emit(text) // Forward raw on error
+            }
+        }
+    }
+    
     // Command Interface for UI
     fun executeTask(taskDescription: String) {
-        val json = JSONObject()
-        json.put("type", "EXECUTE_TASK")
+        if (!isConnected) {
+            scope.launch {
+                _messageFlow.emit("{\"type\":\"ERROR\",\"message\":\"Not connected to agent\"}")
+            }
+            return
+        }
         
-        val payload = JSONObject()
-        payload.put("task", taskDescription)
-        json.put("payload", payload)
+        val json = JSONObject().apply {
+            put("type", "EXECUTE_TASK")
+            put("payload", JSONObject().apply {
+                put("task", taskDescription)
+                put("options", JSONObject().apply {
+                    put("stream", true)
+                })
+            })
+        }
         
         webSocket?.send(json.toString())
+    }
+    
+    /**
+     * Direct tool call from UI
+     */
+    fun callTool(server: String, tool: String, args: Map<String, Any>) {
+        val json = JSONObject().apply {
+            put("type", "CALL_TOOL")
+            put("payload", JSONObject().apply {
+                put("server", server)
+                put("tool", tool)
+                put("args", JSONObject(args))
+            })
+        }
+        webSocket?.send(json.toString())
+    }
+    
+    /**
+     * Stop current task
+     */
+    fun stopTask() {
+        val json = JSONObject().apply {
+            put("type", "STOP_TASK")
+        }
+        webSocket?.send(json.toString())
+    }
+    
+    /**
+     * Check connection status
+     */
+    fun isAgentConnected(): Boolean = isConnected
+    
+    /**
+     * Check if local LLM is ready
+     */
+    fun isLocalLLMReady(): Boolean = llmService.isReady()
+    
+    /**
+     * Get TPU capabilities
+     */
+    fun getTPUCapabilities(): TPUCapabilityService.TPUCapabilities {
+        return tpuService.detectCapabilities()
+    }
+    
+    /**
+     * Get LLM performance metrics
+     */
+    fun getLLMPerformanceMetrics(): LocalLLMService.PerformanceMetrics {
+        return llmService.getPerformanceMetrics()
+    }
+    
+    /**
+     * Get current model name
+     */
+    fun getCurrentModel(): String? = llmService.getCurrentModel()
+    
+    /**
+     * Get recommended model for this device
+     */
+    fun getRecommendedModel(): TPUCapabilityService.RecommendedModel {
+        return tpuService.getRecommendedModel()
+    }
+    
+    // ===== ToolNeuron Integration: TTS Methods =====
+    
+    /**
+     * Speak text using TTS
+     */
+    fun speak(text: String): String? {
+        return ttsService.speak(text)
+    }
+    
+    /**
+     * Speak text and wait for completion
+     */
+    suspend fun speakAndWait(text: String): Boolean {
+        return ttsService.speakAndWait(text)
+    }
+    
+    /**
+     * Stop TTS
+     */
+    fun stopSpeaking() {
+        ttsService.stop()
+    }
+    
+    /**
+     * Check if TTS is speaking
+     */
+    fun isSpeaking(): Boolean = ttsService.isSpeaking()
+    
+    /**
+     * Get TTS configuration
+     */
+    fun getTTSConfiguration(): TTSService.TTSConfiguration {
+        return ttsService.getConfiguration()
+    }
+    
+    /**
+     * Set TTS speech rate
+     */
+    fun setTTSSpeechRate(rate: Float) {
+        ttsService.setSpeechRate(rate)
+    }
+    
+    /**
+     * Enable/disable auto-speak for AI responses
+     */
+    fun setAutoSpeak(enabled: Boolean) {
+        ttsService.setAutoSpeak(enabled)
+    }
+    
+    // ===== ToolNeuron Integration: Document Processing Methods =====
+    
+    /**
+     * Parse a document for RAG
+     */
+    suspend fun parseDocument(filePath: String): DocumentParserService.ParseResult {
+        return documentParser.parseDocument(filePath)
+    }
+    
+    /**
+     * Parse a document from URI
+     */
+    suspend fun parseDocument(uri: Uri, fileName: String?): DocumentParserService.ParseResult {
+        return documentParser.parseDocument(uri, fileName)
+    }
+    
+    /**
+     * Get supported document extensions
+     */
+    fun getSupportedDocumentExtensions(): List<String> {
+        return documentParser.getSupportedExtensions()
+    }
+    
+    /**
+     * Check if document is supported
+     */
+    fun isDocumentSupported(fileName: String): Boolean {
+        return documentParser.isSupported(fileName)
+    }
+    
+    // ===== MediaPipe Integration: Vision Methods =====
+    
+    /**
+     * Detect objects in a bitmap
+     */
+    suspend fun detectObjects(bitmap: Bitmap): MediaPipeVisionService.VisionResult {
+        return visionService.detectObjects(bitmap)
+    }
+    
+    /**
+     * Detect faces in a bitmap
+     */
+    suspend fun detectFaces(bitmap: Bitmap): MediaPipeVisionService.VisionResult {
+        return visionService.detectFaces(bitmap)
+    }
+    
+    /**
+     * Track hands in a bitmap
+     */
+    suspend fun trackHands(bitmap: Bitmap): MediaPipeVisionService.VisionResult {
+        return visionService.trackHands(bitmap)
+    }
+    
+    /**
+     * Process image with all available vision tasks
+     */
+    suspend fun processImage(bitmap: Bitmap): Map<MediaPipeVisionService.VisionTask, MediaPipeVisionService.VisionResult> {
+        return visionService.processImage(bitmap)
+    }
+    
+    /**
+     * Get vision service status
+     */
+    fun getVisionServiceStatus(): MediaPipeVisionService.VisionServiceStatus {
+        return visionService.getStatus()
+    }
+    
+    // ===== RAG Methods =====
+    
+    /**
+     * Add memory to RAG
+     */
+    suspend fun addMemory(text: String): String {
+        return ragService.addMemory(text)
+    }
+    
+    /**
+     * Retrieve context from RAG
+     */
+    suspend fun retrieveContext(query: String, limit: Int = 3): String {
+        return ragService.retrieveContext(query, limit)
+    }
+    
+    /**
+     * Get RAG metrics
+     */
+    fun getRAGMetrics(): EmbeddingService.EmbeddingMetrics? {
+        return ragService.getEmbeddingMetrics()
+    }
+    
+    /**
+     * Check if using real embeddings
+     */
+    fun isUsingRealEmbeddings(): Boolean {
+        return ragService.isUsingRealEmbeddings()
+    }
+    
+    // ===== Service Status =====
+    
+    /**
+     * Get comprehensive service status
+     */
+    fun getServiceStatus(): ServiceStatus {
+        return ServiceStatus(
+            isConnected = isConnected,
+            llmReady = llmService.isReady(),
+            llmModel = llmService.getCurrentModel(),
+            ttsReady = ttsService.isReady.value,
+            visionStatus = visionService.getStatus(),
+            ragMemoryCount = ragService.getMemoryCount(),
+            ragUsingRealEmbeddings = ragService.isUsingRealEmbeddings(),
+            tpuCapabilities = tpuService.detectCapabilities(),
+            modelSetStatus = modelSetManager.getStatus()
+        )
+    }
+    
+    data class ServiceStatus(
+        val isConnected: Boolean,
+        val llmReady: Boolean,
+        val llmModel: String?,
+        val ttsReady: Boolean,
+        val visionStatus: MediaPipeVisionService.VisionServiceStatus,
+        val ragMemoryCount: Int,
+        val ragUsingRealEmbeddings: Boolean,
+        val tpuCapabilities: TPUCapabilityService.TPUCapabilities,
+        val modelSetStatus: ModelSetManager.ModelSetManagerStatus
+    )
+    
+    // ===== Model Set Management (OpenClaw Integration) =====
+    
+    /**
+     * Get current model set
+     */
+    fun getCurrentModelSet(): OptimizedModelSets.ModelSet? {
+        return modelSetManager.currentModelSet.value
+    }
+    
+    /**
+     * Load a specific model set
+     */
+    suspend fun loadModelSet(modelSetType: OptimizedModelSets.ModelSetType): Boolean {
+        val modelSet = when (modelSetType) {
+            OptimizedModelSets.ModelSetType.FLAGSHIP_FULL -> OptimizedModelSets.FLAGSHIP_FULL
+            OptimizedModelSets.ModelSetType.HIGH_PERFORMANCE -> OptimizedModelSets.HIGH_PERFORMANCE
+            OptimizedModelSets.ModelSetType.BALANCED -> OptimizedModelSets.BALANCED
+            OptimizedModelSets.ModelSetType.EFFICIENCY -> OptimizedModelSets.EFFICIENCY
+            OptimizedModelSets.ModelSetType.DISTRIBUTED -> OptimizedModelSets.DISTRIBUTED
+            OptimizedModelSets.ModelSetType.CUSTOM -> return false
+        }
+        return modelSetManager.loadModelSet(modelSet)
+    }
+    
+    /**
+     * Get best model for a specific task
+     */
+    fun getBestModelForTask(task: OptimizedModelSets.TaskType): OptimizedModelSets.ModelConfig? {
+        return modelSetManager.getBestModelForTask(task)
+    }
+    
+    /**
+     * Switch to optimal model for a task
+     */
+    suspend fun switchToTaskOptimalModel(task: OptimizedModelSets.TaskType): Boolean {
+        return modelSetManager.switchToTaskOptimalModel(task)
+    }
+    
+    /**
+     * Get all compatible models for this device
+     */
+    fun getCompatibleModels(): List<OptimizedModelSets.ModelConfig> {
+        return modelSetManager.getCompatibleModels()
+    }
+    
+    /**
+     * Get model set recommendations
+     */
+    fun getModelSetRecommendations(): List<ModelSetManager.ModelSetRecommendation> {
+        return modelSetManager.getModelSetRecommendations()
+    }
+    
+    /**
+     * Check if distributed inference is available
+     */
+    fun canUseDistributedInference(): Boolean {
+        return modelSetManager.canUseDistributedInference()
+    }
+    
+    /**
+     * Get OpenClaw configuration
+     */
+    fun getOpenClawConfig(): OptimizedModelSets.OpenClawConfig? {
+        return modelSetManager.getOpenClawConfig()
+    }
+    
+    /**
+     * Update OpenClaw status from bridge
+     */
+    fun updateOpenClawStatus(
+        isConnected: Boolean,
+        poolName: String?,
+        connectedPeers: Int,
+        availableTasks: Int
+    ) {
+        modelSetManager.updateOpenClawStatus(
+            ModelSetManager.OpenClawStatus(
+                isConnected = isConnected,
+                poolName = poolName,
+                connectedPeers = connectedPeers,
+                availableTasks = availableTasks,
+                canDistribute = connectedPeers >= (getOpenClawConfig()?.minPeersForDistributed ?: Int.MAX_VALUE)
+            )
+        )
+    }
+    
+    /**
+     * Get model set manager status
+     */
+    fun getModelSetManagerStatus(): ModelSetManager.ModelSetManagerStatus {
+        return modelSetManager.getStatus()
     }
 
     override fun onDestroy() {
         super.onDestroy()
+        scope.cancel()
         nodeProcess?.destroy()
         webSocket?.close(1000, "Service Destroyed")
+        
+        // Close all services
+        llmService.close()
+        ragService.close()
+        ttsService.shutdown()
+        visionService.close()
+        modelSetManager.close()
+        toolManager.destroy()
+        
+        Log.d(TAG, "Amphibian Service Destroyed")
     }
 
-    override fun onBind(intent: Intent?): IBinder? {
-        // TODO: Return Binder for UI communication
-        return null
+    override fun onBind(intent: Intent?): IBinder {
+        return LocalBinder()
     }
     
-    // Java 9+ ProcessHandle workaround for older Android APIs if needed
+    companion object {
+        private val PID_REGEX = Regex("pid=(\\d+)")
+    }
+    
     private fun getProcessId(p: Process?): Long {
         return try {
-            p?.toString()?.split("pid=")?.get(1)?.split("}")?.get(0)?.toLong() ?: -1
-        } catch (e: Exception) { -1 }
+            p?.toString()?.let { str ->
+                PID_REGEX.find(str)?.groupValues?.get(1)?.toLongOrNull()
+            } ?: -1L
+        } catch (e: Exception) { -1L }
     }
 }
