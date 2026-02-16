@@ -133,6 +133,29 @@ const modelManager = new ModelManager(async (tool, args) => {
 // Start MCP Servers (Brain Modules)
 async function startBrains() {
     try {
+        const brainConfigs = [
+            { name: 'jules', apiKey: process.env.JULES_API_KEY, adapter: './mcp_servers/jules_adapter.js' },
+            { name: 'stitch', apiKey: process.env.STITCH_API_KEY, adapter: './mcp_servers/stitch_adapter.js' },
+            { name: 'context7', apiKey: process.env.CONTEXT7_API_KEY, adapter: './mcp_servers/context7_adapter.js' }
+        ];
+
+        const filteredConfigs = brainConfigs.filter(config => config.apiKey);
+
+        const connections = filteredConfigs.map(config =>
+            host.connectStdioServer(config.name, 'node', [config.adapter])
+                .then(() => router.register(config.name, true))
+        );
+
+        const results = await Promise.allSettled(connections);
+
+        results.forEach((result, index) => {
+            const config = filteredConfigs[index];
+            if (result.status === 'rejected') {
+                console.error(`Failed to connect brain "${config.name}":`, result.reason);
+            }
+        });
+        
+        // Connect Local Android System
         console.log('🧠 Starting Amphibian Brain Modules...');
 
         // Register Local Brain (TPU/Ollama)
