@@ -45,37 +45,56 @@ jobs:
         env:
           SIGNING_CONFIG: ${{ secrets.SIGNING_CONFIG }}
         run: |
+          # Debug: Show first few chars of SIGNING_CONFIG to verify it's set
           if [ -n "$SIGNING_CONFIG" ]; then
-            # Parse SIGNING_CONFIG and create gradle properties
-            echo "$SIGNING_CONFIG" | while IFS= read -r line; do
-              key=$(echo "$line" | cut -d'=' -f1)
-              value=$(echo "$line" | cut -d'=' -f2-)
-              
-              # Remove quotes from value if present
-              value=$(echo "$value" | sed 's/^"//;s/"$//')
-              
-              case "$key" in
-                storeFile)
-                  echo "storeFile=$value" >> android/signing.properties
-                  ;;
-                storePassword)
-                  echo "storePassword=$value" >> android/signing.properties
-                  ;;
-                keyAlias)
-                  echo "keyAlias=$value" >> android/signing.properties
-                  ;;
-                keyPassword)
-                  echo "keyPassword=$value" >> android/signing.properties
-                  ;;
-              esac
+            echo "SIGNING_CONFIG is set (length: ${#SIGNING_CONFIG})"
+            
+            # Parse SIGNING_CONFIG - handle multiline format (GitHub secrets use literal newlines)
+            # Also handle semicolon-separated format
+            echo "$SIGNING_CONFIG" | tr ';\r' '\n' | while IFS= read -r line; do
+              if [ -n "$line" ]; then
+                key=$(echo "$line" | cut -d'=' -f1)
+                value=$(echo "$line" | cut -d'=' -f2-)
+                
+                # Remove quotes from value if present
+                value=$(echo "$value" | sed 's/^"//;s/"$//')
+                
+                case "$key" in
+                  storeFile)
+                    echo "STORE_FILE=$value" >> android/gradle.properties
+                    ;;
+                  storePassword)
+                    echo "STORE_PASSWORD=$value" >> android/gradle.properties
+                    ;;
+                  keyAlias)
+                    echo "KEY_ALIAS=$value" >> android/gradle.properties
+                    ;;
+                  keyPassword)
+                    echo "KEY_PASSWORD=$value" >> android/gradle.properties
+                    ;;
+                esac
+              fi
             done
-            echo "SIGNING_CONFIG parsed successfully"
-            cat android/signing.properties
+            
+            echo "SIGNING_CONFIG parsed:"
+            cat android/gradle.properties
           else
-            echo "SIGNING_CONFIG is not set"
-            # Create empty file to avoid build errors
-            touch android/signing.properties
+            echo "SIGNING_CONFIG is not set or empty"
           fi
+          
+      - name: Update Android SDK and AGP versions (if needed)
+        run: |
+          # Update compileSdk and targetSdk to 36 if needed
+          sed -i 's/compileSdk 35/compileSdk 36/' android/app/build.gradle || true
+          sed -i 's/targetSdk 35/targetSdk 36/' android/app/build.gradle || true
+          
+          # Update Android Gradle Plugin to 8.9.1 in root build.gradle if needed
+          sed -i "s/classpath 'com.android.tools.build:gradle:8.7.3'/classpath 'com.android.tools.build:gradle:8.9.1'/" android/build.gradle || true
+          
+          # Update Gradle wrapper to 8.10 if needed
+          sed -i 's/gradle-8.9-bin.zip/gradle-8.10-bin.zip/' android/gradle/wrapper/gradle-wrapper.properties || true
+          
+          echo "SDK and AGP version check complete"
           
       - name: Update version if provided
         if: github.event.inputs.version_name != ''
@@ -90,29 +109,22 @@ jobs:
           
       - name: Modify build.gradle to use signing config
         run: |
-          # Create a patch to use the signing config from properties file
+          # Create a patch to use the signing config from gradle.properties
           cat >> android/app/build.gradle.append << 'EOF'
           
-          // Load signing configuration from properties file
-          def signingPropsFile = file("signing.properties")
-          if (signingPropsFile.exists()) {
-              def props = new Properties()
-              signingPropsFile.withInputStream { props.load(it) }
+          // Load signing configuration from gradle.properties
+          def storeFile = project.hasProperty('STORE_FILE') ? project.property('STORE_FILE') : null
+          def storePassword = project.hasProperty('STORE_PASSWORD') ? project.property('STORE_PASSWORD') : null
+          def keyAlias = project.hasProperty('KEY_ALIAS') ? project.property('KEY_ALIAS') : null
+          def keyPassword = project.hasProperty('KEY_PASSWORD') ? project.property('KEY_PASSWORD') : null
+          
+          if (storeFile && storePassword && keyAlias && keyPassword) {
+              android.signingConfigs.release.storeFile = file(storeFile)
+              android.signingConfigs.release.storePassword = storePassword
+              android.signingConfigs.release.keyAlias = keyAlias
+              android.signingConfigs.release.keyPassword = keyPassword
               
-              def keystoreFile = props.getProperty('storeFile')
-              def storePassword = props.getProperty('storePassword')
-              def keyAlias = props.getProperty('keyAlias')
-              def keyPassword = props.getProperty('keyPassword')
-              
-              if (keystoreFile && storePassword && keyAlias && keyPassword) {
-                  // Create signing config
-                  android.signingConfigs.release.storeFile = file(keystoreFile)
-                  android.signingConfigs.release.storePassword = storePassword
-                  android.signingConfigs.release.keyAlias = keyAlias
-                  android.signingConfigs.release.keyPassword = keyPassword
-                  
-                  println "Using release signing config"
-              }
+              println "Using release signing config from gradle.properties"
           }
           EOF
           
@@ -123,12 +135,15 @@ jobs:
         working-directory: android
         run: chmod +x gradlew
         
-      - name: Build debug APK
+      - name: Build APK
         working-directory: android
         run: |
-          if [ -f "app/app.key" ]; then
+          # Check if both keystore and signing config exist
+          if [ -f "app/app.key" ] && grep -q "STORE_FILE" "gradle.properties"; then
+            echo "Building release APK with signing config"
             ./gradlew assembleRelease --no-daemon
           else
+            echo "Building debug APK (no valid signing config)"
             ./gradlew assembleDebug --no-daemon
           fi
           
@@ -151,4 +166,3 @@ jobs:
             android/app/build/outputs/apk/release/*.apk
             android/app/build/outputs/apk/debug/*.apk
           retention-days: 30
-
