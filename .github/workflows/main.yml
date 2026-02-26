@@ -236,3 +236,238 @@ jobs:
             android/app/build/outputs/apk/release/*.apk
             android/app/build/outputs/apk/debug/*.apk
           retention-days: 30
+          
+          
+          
+          
+          
+name: Build Android APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_name:
+        description: 'Version Name (e.g., 1.0.0)'
+        required: false
+        default: '1.0.0'
+      version_code:
+        description: 'Version Code (integer)'
+        required: false
+        default: '1'
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'gradle'
+          
+      - name: Decode keystore from Base64
+        env:
+          KEY_BASE64: ${{ secrets.KEY_BASE64 }}
+        run: |
+          if [ -n "$KEY_BASE64" ]; then
+            echo "$KEY_BASE64" | base64 -d > android/app/app.key
+            echo "Keystore decoded successfully"
+          else
+            echo "KEY_BASE64 is not set, using debug signing"
+          fi
+          
+      - name: Update Android SDK and AGP versions (if needed)
+        run: |
+          # Update compileSdk and targetSdk to 36 if needed
+          sed -i 's/compileSdk 35/compileSdk 36/' android/app/build.gradle || true
+          sed -i 's/targetSdk 35/targetSdk 36/' android/app/build.gradle || true
+          
+          # Update Android Gradle Plugin to 8.9.1 in root build.gradle if needed
+          sed -i "s/classpath 'com.android.tools.build:gradle:8.7.3'/classpath 'com.android.tools.build:gradle:8.9.1'/" android/build.gradle || true
+          
+          # Update Gradle wrapper to 8.11.1 if needed
+          sed -i 's/gradle-8.9-bin.zip/gradle-8.11.1-bin.zip/' android/gradle/wrapper/gradle-wrapper.properties || true
+          sed -i 's/gradle-8.10-bin.zip/gradle-8.11.1-bin.zip/' android/gradle/wrapper/gradle-wrapper.properties || true
+          
+          # 保持 Kotlin 1.9.x，不升级到 2.0（避免破坏性变更）
+          # 如果项目已经是 2.0，则保持不变；如果是 1.9，不强制升级
+          echo "SDK and AGP version check complete (Kotlin version preserved for compatibility)"
+          
+      - name: Configure Compose Compiler
+        run: |
+          echo "Configuring Compose Compiler..."
+      
+          ROOT_BUILD_GRADLE="android/build.gradle"
+          APP_BUILD_GRADLE="android/app/build.gradle"
+      
+          # 获取当前 Kotlin 版本
+          KOTLIN_VERSION_LINE=$(grep -E "kotlin_version\s*=" "$ROOT_BUILD_GRADLE" | head -1)
+          if [ -n "$KOTLIN_VERSION_LINE" ]; then
+            KOTLIN_VERSION=$(echo "$KOTLIN_VERSION_LINE" | sed -E "s/.*kotlin_version\s*=\s*['\"]([^'\"]+)['\"].*/\1/")
+            echo "Detected Kotlin version: $KOTLIN_VERSION"
+          else
+            KOTLIN_VERSION="1.9.23"
+            echo "Kotlin version not detected, assuming $KOTLIN_VERSION"
+          fi
+      
+          # 检查是否为 Kotlin 2.0+
+          if [[ "$KOTLIN_VERSION" == 2.* ]]; then
+            echo "Kotlin 2.0+ detected, using Compose Compiler Gradle plugin..."
+      
+            # 移除旧的 composeOptions 块
+            sed -i '/composeOptions\s*{/,/}/d' "$APP_BUILD_GRADLE" || true
+            sed -i '/kotlinCompilerExtensionVersion/d' "$APP_BUILD_GRADLE" || true
+      
+            # 应用 compose 插件
+            if ! grep -q "org.jetbrains.kotlin.plugin.compose" "$APP_BUILD_GRADLE"; then
+              echo "Applying Compose Compiler plugin..."
+              if grep -q "^plugins {" "$APP_BUILD_GRADLE"; then
+                sed -i "/id 'org.jetbrains.kotlin.android'/a\\    id 'org.jetbrains.kotlin.plugin.compose' version '$KOTLIN_VERSION'" "$APP_BUILD_GRADLE"
+                sed -i '/id "org.jetbrains.kotlin.android"/a\\    id "org.jetbrains.kotlin.plugin.compose" version "'"$KOTLIN_VERSION"'"' "$APP_BUILD_GRADLE"
+              elif grep -q "apply plugin: 'com.android.application'" "$APP_BUILD_GRADLE"; then
+                sed -i "/apply plugin: 'com.android.application'/a\\apply plugin: 'org.jetbrains.kotlin.plugin.compose'" "$APP_BUILD_GRADLE"
+              elif grep -q 'apply plugin: "com.android.application"' "$APP_BUILD_GRADLE"; then
+                sed -i '/apply plugin: "com.android.application"/a\\apply plugin: "org.jetbrains.kotlin.plugin.compose"' "$APP_BUILD_GRADLE"
+              fi
+              echo "Added compose plugin"
+            else
+              echo "Compose Compiler plugin already applied"
+            fi
+      
+          else
+            echo "Kotlin 1.9.x detected, using traditional composeOptions..."
+      
+            if ! grep -q "composeOptions" "$APP_BUILD_GRADLE"; then
+              # 用 Python 可靠地插入多行内容（sed 对多行插入不友好）
+              python3 -c "
+          import re
+          with open('$APP_BUILD_GRADLE', 'r') as f:
+              content = f.read()
+          # 在 buildFeatures 块之后插入 composeOptions
+          insert_block = '''
+              composeOptions {
+                  kotlinCompilerExtensionVersion = \"1.5.14\"
+              }
+          '''
+          if 'buildFeatures' in content:
+              # 在 buildFeatures { ... } 块后面插入
+              pattern = r'(buildFeatures\s*\{[^}]*\})'
+              content = re.sub(pattern, r'\1\n' + insert_block, content, count=1)
+          elif 'android {' in content:
+              # 在 android { 之后插入
+              content = content.replace('android {', 'android {\n' + insert_block, 1)
+          with open('$APP_BUILD_GRADLE', 'w') as f:
+              f.write(content)
+          "
+              echo "Added composeOptions with kotlinCompilerExtensionVersion 1.5.14"
+            else
+              # 更新现有版本号（注意闭合引号）
+              sed -i 's/kotlinCompilerExtensionVersion = "1.5\.[0-9]*"/kotlinCompilerExtensionVersion = "1.5.14"/' "$APP_BUILD_GRADLE" || true
+              echo "Updated composeOptions to 1.5.14"
+            fi
+          fi
+      
+          # 验证配置
+          echo "=== Root build.gradle (buildscript dependencies) ==="
+          grep -A10 "buildscript" "$ROOT_BUILD_GRADLE" | grep -A5 "dependencies" || true
+          echo ""
+          echo "=== App build.gradle (first 25 lines) ==="
+          head -25 "$APP_BUILD_GRADLE" || true
+          echo ""
+          echo "Configuration complete!"
+                
+      - name: Update version if provided
+        if: github.event.inputs.version_name != ''
+        run: |
+          # Update versionName in build.gradle
+          sed -i "s/versionName \".*\"/versionName \"${{ github.event.inputs.version_name }}\"/" android/app/build.gradle
+          
+          # Update versionCode if provided
+          if [ -n "${{ github.event.inputs.version_code }}" ]; then
+            sed -i "s/versionCode [0-9]*/versionCode ${{ github.event.inputs.version_code }}/" android/app/build.gradle
+          fi
+          
+      - name: Configure signing in build.gradle
+        env:
+          SIGNING_CONFIG: ${{ secrets.SIGNING_CONFIG }}
+        run: |
+          if [ -n "$SIGNING_CONFIG" ] && [ -f "android/app/app.key" ]; then
+            echo "Configuring release signing..."
+            
+            # Parse SIGNING_CONFIG
+            echo "$SIGNING_CONFIG" | tr ';\r' '\n' | while IFS= read -r line; do
+              if [ -n "$line" ]; then
+                key=$(echo "$line" | cut -d'=' -f1)
+                value=$(echo "$line" | cut -d'=' -f2-)
+                value=$(echo "$value" | sed 's/^"//;s/"$//')
+                
+                case "$key" in
+                  storeFile)
+                    # Replace the storeFile value in build.gradle
+                    sed -i "s|storeFile = null|storeFile = file(\"$value\")|" android/app/build.gradle
+                    ;;
+                  storePassword)
+                    sed -i "s|storePassword = \"\"|storePassword = \"$value\"|" android/app/build.gradle
+                    ;;
+                  keyAlias)
+                    sed -i "s|keyAlias = \"\"|keyAlias = \"$value\"|" android/app/build.gradle
+                    ;;
+                  keyPassword)
+                    sed -i "s|keyPassword = \"\"|keyPassword = \"$value\"|" android/app/build.gradle
+                    ;;
+                esac
+              fi
+            done
+            
+            # Also update signing config in release buildType to use release instead of debug
+            sed -i 's/signingConfig signingConfigs.debug/signingConfig signingConfigs.release/' android/app/build.gradle
+            
+            echo "Signing configured:"
+            grep -A5 "signingConfigs {" android/app/build.gradle
+          else
+            echo "No signing config found, using debug build"
+          fi
+          
+      - name: Grant execute permission for gradlew
+        working-directory: android
+        run: chmod +x gradlew
+        
+      - name: Build APK
+        working-directory: android
+        run: |
+          # Check if keystore exists
+          if [ -f "app/app.key" ]; then
+            echo "Building release APK with signing config"
+            ./gradlew assembleRelease --no-daemon
+          else
+            echo "Building debug APK (no keystore)"
+            ./gradlew assembleDebug --no-daemon
+          fi
+          
+      - name: Rename APK with version
+        run: |
+          if [ -n "${{ github.event.inputs.version_name }}" ]; then
+            if [ -f "android/app/build/outputs/apk/release/app-release.apk" ]; then
+              mv android/app/build/outputs/apk/release/app-release.apk android/app/build/outputs/apk/release/Landseek-Amphibian-${{ github.event.inputs.version_name }}.apk
+            fi
+            if [ -f "android/app/build/outputs/apk/debug/app-debug.apk" ]; then
+              mv android/app/build/outputs/apk/debug/app-debug.apk android/app/build/outputs/apk/debug/Landseek-Amphibian-${{ github.event.inputs.version_name }}-debug.apk
+            fi
+          fi
+          
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: APK
+          path: |
+            android/app/build/outputs/apk/release/*.apk
+            android/app/build/outputs/apk/debug/*.apk
+          retention-days: 30          
