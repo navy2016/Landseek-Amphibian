@@ -91,8 +91,9 @@ jobs:
           # Update Android Gradle Plugin to 8.9.1 in root build.gradle if needed
           sed -i "s/classpath 'com.android.tools.build:gradle:8.7.3'/classpath 'com.android.tools.build:gradle:8.9.1'/" android/build.gradle || true
           
-          # Update Gradle wrapper to 8.10 if needed
-          sed -i 's/gradle-8.9-bin.zip/gradle-8.10-bin.zip/' android/gradle/wrapper/gradle-wrapper.properties || true
+          # Update Gradle wrapper to 8.11.1 if needed
+          sed -i 's/gradle-8.9-bin.zip/gradle-8.11.1-bin.zip/' android/gradle/wrapper/gradle-wrapper.properties || true
+          sed -i 's/gradle-8.10-bin.zip/gradle-8.11.1-bin.zip/' android/gradle/wrapper/gradle-wrapper.properties || true
           
           echo "SDK and AGP version check complete"
           
