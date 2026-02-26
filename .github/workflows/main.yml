@@ -54,6 +54,13 @@ jobs:
           sed -i 's/gradle-8.9-bin.zip/gradle-8.11.1-bin.zip/' android/gradle/wrapper/gradle-wrapper.properties || true
           sed -i 's/gradle-8.10-bin.zip/gradle-8.11.1-bin.zip/' android/gradle/wrapper/gradle-wrapper.properties || true
           
+          # Update Kotlin version to 2.0.21 if needed
+          sed -i "s/kotlin_version = '1.9.23'/kotlin_version = '2.0.21'/" android/build.gradle || true
+          sed -i "s/kotlin_version = '1.9.22'/kotlin_version = '2.0.21'/" android/build.gradle || true
+          
+          # Update compose compiler version
+          sed -i "s/compose_compiler_version = '1.5.13'/compose_compiler_version = '1.5.14'/" android/build.gradle || true
+          
           echo "SDK and AGP version check complete"
           
       - name: Update version if provided
@@ -143,4 +150,3 @@ jobs:
             android/app/build/outputs/apk/release/*.apk
             android/app/build/outputs/apk/debug/*.apk
           retention-days: 30
-
