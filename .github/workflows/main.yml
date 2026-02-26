@@ -110,20 +110,34 @@ jobs:
           fi
           
           # 2. 在 app/build.gradle 中应用 compose 插件
-          if ! grep -q "apply plugin.*org.jetbrains.kotlin.plugin.compose" "$APP_BUILD_GRADLE"; then
+          if ! grep -q "org.jetbrains.kotlin.plugin.compose" "$APP_BUILD_GRADLE"; then
             echo "Applying Compose Compiler plugin in app/build.gradle..."
             
-            # 在 com.android.application 插件后添加
-            if grep -q "apply plugin: 'com.android.application'" "$APP_BUILD_GRADLE"; then
+            # 检测 app/build.gradle 使用的是 plugins {} 还是 apply plugin
+            if grep -q "^plugins {" "$APP_BUILD_GRADLE"; then
+              echo "Detected plugins {} DSL format"
+              # 在 plugins {} 块中添加 id 'org.jetbrains.kotlin.plugin.compose' version 'x.x.x'
+              # 找到 plugins { 行，在后面添加
+              if grep -q "id 'org.jetbrains.kotlin.android'" "$APP_BUILD_GRADLE"; then
+                # 在 kotlin android 插件后添加
+                sed -i "/id 'org.jetbrains.kotlin.android'/a\\    id 'org.jetbrains.kotlin.plugin.compose' version '$PLUGIN_VERSION'" "$APP_BUILD_GRADLE"
+                echo "Added compose plugin after kotlin-android (single quotes)"
+              elif grep -q 'id "org.jetbrains.kotlin.android"' "$APP_BUILD_GRADLE"; then
+                sed -i '/id "org.jetbrains.kotlin.android"/a\\    id "org.jetbrains.kotlin.plugin.compose" version "'"$PLUGIN_VERSION"'"' "$APP_BUILD_GRADLE"
+                echo "Added compose plugin after kotlin-android (double quotes)"
+              else
+                # 在 plugins { 后添加
+                sed -i '/^plugins {/a\\    id "org.jetbrains.kotlin.plugin.compose" version "'"$PLUGIN_VERSION"'"' "$APP_BUILD_GRADLE"
+                echo "Added compose plugin after plugins block"
+              fi
+            elif grep -q "apply plugin: 'com.android.application'" "$APP_BUILD_GRADLE"; then
               sed -i "/apply plugin: 'com.android.application'/a\\apply plugin: 'org.jetbrains.kotlin.plugin.compose'" "$APP_BUILD_GRADLE"
               echo "Added compose plugin apply (single quotes)"
             elif grep -q 'apply plugin: "com.android.application"' "$APP_BUILD_GRADLE"; then
               sed -i '/apply plugin: "com.android.application"/a\\apply plugin: "org.jetbrains.kotlin.plugin.compose"' "$APP_BUILD_GRADLE"
               echo "Added compose plugin apply (double quotes)"
             else
-              echo "Warning: Could not find com.android.application plugin, adding at top..."
-              # 在文件开头添加
-              sed -i '1s/^/apply plugin: "org.jetbrains.kotlin.plugin.compose"\n/' "$APP_BUILD_GRADLE"
+              echo "Warning: Could not detect plugin format, skipping app plugin configuration"
             fi
           else
             echo "Compose Compiler plugin already applied in app/build.gradle"
@@ -143,9 +157,10 @@ jobs:
           grep -A10 "buildscript" "$ROOT_BUILD_GRADLE" | grep -A5 "dependencies" || true
           echo ""
           echo "=== App build.gradle (plugins) ==="
-          grep "apply plugin" "$APP_BUILD_GRADLE" | head -10 || true
+          head -20 "$APP_BUILD_GRADLE" || true
           echo ""
           echo "Configuration complete!"
+
           
       - name: Update version if provided
         if: github.event.inputs.version_name != ''
