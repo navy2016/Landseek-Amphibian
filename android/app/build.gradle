@@ -5,12 +5,23 @@ plugins {
 
 android {
     namespace 'com.landseek.amphibian'
-    compileSdk 35
-
+    compileSdk 36
+    
+    // Define signing configs (will be overridden by CI if secrets are provided)
+    signingConfigs {
+        release {
+            // Placeholder - will be configured by CI/CD
+            storeFile = null
+            storePassword = ""
+            keyAlias = ""
+            keyPassword = ""
+        }
+    }
+    
     defaultConfig {
         applicationId "com.landseek.amphibian"
         minSdk 29
-        targetSdk 35
+        targetSdk 36
         versionCode 1
         versionName "1.0.0"
 
