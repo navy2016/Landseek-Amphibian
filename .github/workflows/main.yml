@@ -69,71 +69,59 @@ jobs:
           ROOT_BUILD_GRADLE="android/build.gradle"
           APP_BUILD_GRADLE="android/app/build.gradle"
           
-          # 1. 在根 build.gradle 的 buildscript dependencies 中添加 Compose Compiler 插件
-          if ! grep -q "org.jetbrains.kotlin.plugin.compose" "$ROOT_BUILD_GRADLE"; then
-            echo "Adding Compose Compiler plugin to root build.gradle..."
-            
-            # 获取当前 kotlin_version 的值（处理单双引号）
-            KOTLIN_VERSION_LINE=$(grep -E "kotlin_version\s*=" "$ROOT_BUILD_GRADLE" | head -1)
-            
-            if [ -n "$KOTLIN_VERSION_LINE" ]; then
-              # 提取版本值（兼容 $kotlin_version 和具体版本号）
-              if echo "$KOTLIN_VERSION_LINE" | grep -q '\$kotlin_version'; then
-                PLUGIN_VERSION='$kotlin_version'
-                echo "Detected variable reference: $PLUGIN_VERSION"
-              else
-                # 提取引号中的版本号（去掉引号）
-                PLUGIN_VERSION=$(echo "$KOTLIN_VERSION_LINE" | sed -E "s/.*kotlin_version\s*=\s*['\"]([^'\"]+)['\"].*/\1/")
-                echo "Detected version: $PLUGIN_VERSION"
-              fi
-              
-              # 在 kotlin-gradle-plugin 行后添加 compose compiler 插件
-              # 先尝试匹配双引号格式
-              if grep -q 'classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:' "$ROOT_BUILD_GRADLE"; then
-                sed -i "/classpath \"org.jetbrains.kotlin:kotlin-gradle-plugin:/a\\        classpath \"org.jetbrains.kotlin.plugin.compose:org.jetbrains.kotlin.plugin.compose.gradle.plugin:$PLUGIN_VERSION\"" "$ROOT_BUILD_GRADLE"
-                echo "Added compose plugin (double quotes format)"
-              # 再尝试单引号格式
-              elif grep -q "classpath 'org.jetbrains.kotlin:kotlin-gradle-plugin:" "$ROOT_BUILD_GRADLE"; then
-                sed -i "/classpath 'org.jetbrains.kotlin:kotlin-gradle-plugin:/a\\        classpath 'org.jetbrains.kotlin.plugin.compose:org.jetbrains.kotlin.plugin.compose.gradle.plugin:$PLUGIN_VERSION'" "$ROOT_BUILD_GRADLE"
-                echo "Added compose plugin (single quotes format)"
-              else
-                echo "Warning: Could not find kotlin-gradle-plugin line, trying alternative method..."
-                # 在 dependencies { 后添加
-                sed -i '/dependencies\s*{/a\\        classpath "org.jetbrains.kotlin.plugin.compose:org.jetbrains.kotlin.plugin.compose.gradle.plugin:2.0.21"' "$ROOT_BUILD_GRADLE"
-              fi
-            else
-              echo "Warning: Could not detect kotlin_version, using hardcoded 2.0.21"
-              sed -i '/dependencies\s*{/a\\        classpath "org.jetbrains.kotlin.plugin.compose:org.jetbrains.kotlin.plugin.compose.gradle.plugin:2.0.21"' "$ROOT_BUILD_GRADLE"
-            fi
-          else
-            echo "Compose Compiler plugin already exists in root build.gradle"
+          # 1. 检查根 build.gradle 是否已存在 compose compiler 插件（如果存在则移除）
+          if grep -q "org.jetbrains.kotlin.plugin.compose" "$ROOT_BUILD_GRADLE"; then
+            echo "Removing duplicate Compose Compiler plugin from root build.gradle..."
+            sed -i '/org.jetbrains.kotlin.plugin.compose/d' "$ROOT_BUILD_GRADLE"
           fi
           
-          # 2. 在 app/build.gradle 中应用 compose 插件
+          # 2. 在 app/build.gradle 中应用 compose 插件（如果尚未应用）
           if ! grep -q "org.jetbrains.kotlin.plugin.compose" "$APP_BUILD_GRADLE"; then
             echo "Applying Compose Compiler plugin in app/build.gradle..."
+            
+            # 获取当前 kotlin_version 的值用于版本号
+            KOTLIN_VERSION_LINE=$(grep -E "kotlin_version\s*=" "$ROOT_BUILD_GRADLE" | head -1)
+            if [ -n "$KOTLIN_VERSION_LINE" ]; then
+              if echo "$KOTLIN_VERSION_LINE" | grep -q '\$kotlin_version'; then
+                PLUGIN_VERSION='$kotlin_version'
+              else
+                PLUGIN_VERSION=$(echo "$KOTLIN_VERSION_LINE" | sed -E "s/.*kotlin_version\s*=\s*['\"]([^'\"]+)['\"].*/\1/")
+              fi
+            else
+              PLUGIN_VERSION="2.0.21"
+            fi
             
             # 检测 app/build.gradle 使用的是 plugins {} 还是 apply plugin
             if grep -q "^plugins {" "$APP_BUILD_GRADLE"; then
               echo "Detected plugins {} DSL format"
-              # 在 plugins {} 块中添加 id 'org.jetbrains.kotlin.plugin.compose' version 'x.x.x'
-              # 找到 plugins { 行，在后面添加
+              # 在 plugins {} 块中添加
               if grep -q "id 'org.jetbrains.kotlin.android'" "$APP_BUILD_GRADLE"; then
-                # 在 kotlin android 插件后添加
                 sed -i "/id 'org.jetbrains.kotlin.android'/a\\    id 'org.jetbrains.kotlin.plugin.compose' version '$PLUGIN_VERSION'" "$APP_BUILD_GRADLE"
                 echo "Added compose plugin after kotlin-android (single quotes)"
               elif grep -q 'id "org.jetbrains.kotlin.android"' "$APP_BUILD_GRADLE"; then
                 sed -i '/id "org.jetbrains.kotlin.android"/a\\    id "org.jetbrains.kotlin.plugin.compose" version "'"$PLUGIN_VERSION"'"' "$APP_BUILD_GRADLE"
                 echo "Added compose plugin after kotlin-android (double quotes)"
               else
-                # 在 plugins { 后添加
                 sed -i '/^plugins {/a\\    id "org.jetbrains.kotlin.plugin.compose" version "'"$PLUGIN_VERSION"'"' "$APP_BUILD_GRADLE"
                 echo "Added compose plugin after plugins block"
               fi
             elif grep -q "apply plugin: 'com.android.application'" "$APP_BUILD_GRADLE"; then
+              # 传统方式：需要在根 build.gradle 中添加 classpath
+              echo "Detected apply plugin format, adding classpath to root build.gradle..."
+              if grep -q 'classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:' "$ROOT_BUILD_GRADLE"; then
+                sed -i "/classpath \"org.jetbrains.kotlin:kotlin-gradle-plugin:/a\\        classpath \"org.jetbrains.kotlin.plugin.compose:org.jetbrains.kotlin.plugin.compose.gradle.plugin:$PLUGIN_VERSION\"" "$ROOT_BUILD_GRADLE"
+              elif grep -q "classpath 'org.jetbrains.kotlin:kotlin-gradle-plugin:" "$ROOT_BUILD_GRADLE"; then
+                sed -i "/classpath 'org.jetbrains.kotlin:kotlin-gradle-plugin:/a\\        classpath 'org.jetbrains.kotlin.plugin.compose:org.jetbrains.kotlin.plugin.compose.gradle.plugin:$PLUGIN_VERSION'" "$ROOT_BUILD_GRADLE"
+              fi
               sed -i "/apply plugin: 'com.android.application'/a\\apply plugin: 'org.jetbrains.kotlin.plugin.compose'" "$APP_BUILD_GRADLE"
               echo "Added compose plugin apply (single quotes)"
             elif grep -q 'apply plugin: "com.android.application"' "$APP_BUILD_GRADLE"; then
+              echo "Detected apply plugin format, adding classpath to root build.gradle..."
+              if grep -q 'classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:' "$ROOT_BUILD_GRADLE"; then
+                sed -i "/classpath \"org.jetbrains.kotlin:kotlin-gradle-plugin:/a\\        classpath \"org.jetbrains.kotlin.plugin.compose:org.jetbrains.kotlin.plugin.compose.gradle.plugin:$PLUGIN_VERSION\"" "$ROOT_BUILD_GRADLE"
+              elif grep -q "classpath 'org.jetbrains.kotlin:kotlin-gradle-plugin:" "$ROOT_BUILD_GRADLE"; then
+                sed -i "/classpath 'org.jetbrains.kotlin:kotlin-gradle-plugin:/a\\        classpath 'org.jetbrains.kotlin.plugin.compose:org.jetbrains.kotlin.plugin.compose.gradle.plugin:$PLUGIN_VERSION'" "$ROOT_BUILD_GRADLE"
+              fi
               sed -i '/apply plugin: "com.android.application"/a\\apply plugin: "org.jetbrains.kotlin.plugin.compose"' "$APP_BUILD_GRADLE"
               echo "Added compose plugin apply (double quotes)"
             else
@@ -146,9 +134,7 @@ jobs:
           # 3. 移除旧的 composeOptions 配置（Kotlin 2.0+ 不再需要）
           if grep -q "composeOptions" "$APP_BUILD_GRADLE"; then
             echo "Removing deprecated composeOptions configuration..."
-            # 删除 composeOptions 块（多行）
             sed -i '/composeOptions\s*{/,/}/d' "$APP_BUILD_GRADLE"
-            # 删除单独的 kotlinCompilerExtensionVersion 行
             sed -i '/kotlinCompilerExtensionVersion/d' "$APP_BUILD_GRADLE"
           fi
           
@@ -156,10 +142,11 @@ jobs:
           echo "=== Root build.gradle (buildscript dependencies) ==="
           grep -A10 "buildscript" "$ROOT_BUILD_GRADLE" | grep -A5 "dependencies" || true
           echo ""
-          echo "=== App build.gradle (plugins) ==="
+          echo "=== App build.gradle (first 20 lines) ==="
           head -20 "$APP_BUILD_GRADLE" || true
           echo ""
           echo "Configuration complete!"
+
 
           
       - name: Update version if provided
