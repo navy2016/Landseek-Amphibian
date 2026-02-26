@@ -66,11 +66,10 @@ jobs:
         run: |
           echo "Configuring Compose Compiler Gradle plugin for Kotlin 2.0+..."
           
-          # 1. 在根 build.gradle 的 buildscript dependencies 中添加 Compose Compiler 插件
           ROOT_BUILD_GRADLE="android/build.gradle"
           APP_BUILD_GRADLE="android/app/build.gradle"
           
-          # 检查是否已经存在 compose compiler 插件
+          # 1. 在根 build.gradle 的 buildscript dependencies 中添加 Compose Compiler 插件
           if ! grep -q "org.jetbrains.kotlin.plugin.compose" "$ROOT_BUILD_GRADLE"; then
             echo "Adding Compose Compiler plugin to root build.gradle..."
             
@@ -81,10 +80,11 @@ jobs:
               # 提取版本值（兼容 $kotlin_version 和具体版本号）
               if echo "$KOTLIN_VERSION_LINE" | grep -q '\$kotlin_version'; then
                 PLUGIN_VERSION='$kotlin_version'
+                echo "Detected variable reference: $PLUGIN_VERSION"
               else
-                # 提取引号中的版本号
+                # 提取引号中的版本号（去掉引号）
                 PLUGIN_VERSION=$(echo "$KOTLIN_VERSION_LINE" | sed -E "s/.*kotlin_version\s*=\s*['\"]([^'\"]+)['\"].*/\1/")
-                PLUGIN_VERSION="'$PLUGIN_VERSION'"
+                echo "Detected version: $PLUGIN_VERSION"
               fi
               
               # 在 kotlin-gradle-plugin 行后添加 compose compiler 插件
