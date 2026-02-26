@@ -41,47 +41,6 @@ jobs:
             echo "KEY_BASE64 is not set, using debug signing"
           fi
           
-      - name: Create signing configuration
-        env:
-          SIGNING_CONFIG: ${{ secrets.SIGNING_CONFIG }}
-        run: |
-          # Debug: Show first few chars of SIGNING_CONFIG to verify it's set
-          if [ -n "$SIGNING_CONFIG" ]; then
-            echo "SIGNING_CONFIG is set (length: ${#SIGNING_CONFIG})"
-            
-            # Parse SIGNING_CONFIG - handle multiline format (GitHub secrets use literal newlines)
-            # Also handle semicolon-separated format
-            echo "$SIGNING_CONFIG" | tr ';\r' '\n' | while IFS= read -r line; do
-              if [ -n "$line" ]; then
-                key=$(echo "$line" | cut -d'=' -f1)
-                value=$(echo "$line" | cut -d'=' -f2-)
-                
-                # Remove quotes from value if present
-                value=$(echo "$value" | sed 's/^"//;s/"$//')
-                
-                case "$key" in
-                  storeFile)
-                    echo "STORE_FILE=$value" >> android/gradle.properties
-                    ;;
-                  storePassword)
-                    echo "STORE_PASSWORD=$value" >> android/gradle.properties
-                    ;;
-                  keyAlias)
-                    echo "KEY_ALIAS=$value" >> android/gradle.properties
-                    ;;
-                  keyPassword)
-                    echo "KEY_PASSWORD=$value" >> android/gradle.properties
-                    ;;
-                esac
-              fi
-            done
-            
-            echo "SIGNING_CONFIG parsed:"
-            cat android/gradle.properties
-          else
-            echo "SIGNING_CONFIG is not set or empty"
-          fi
-          
       - name: Update Android SDK and AGP versions (if needed)
         run: |
           # Update compileSdk and targetSdk to 36 if needed
@@ -108,29 +67,46 @@ jobs:
             sed -i "s/versionCode [0-9]*/versionCode ${{ github.event.inputs.version_code }}/" android/app/build.gradle
           fi
           
-      - name: Modify build.gradle to use signing config
+      - name: Configure signing in build.gradle
+        env:
+          SIGNING_CONFIG: ${{ secrets.SIGNING_CONFIG }}
         run: |
-          # Create a patch to use the signing config from gradle.properties
-          cat >> android/app/build.gradle.append << 'EOF'
-          
-          // Load signing configuration from gradle.properties
-          def storeFile = project.hasProperty('STORE_FILE') ? project.property('STORE_FILE') : null
-          def storePassword = project.hasProperty('STORE_PASSWORD') ? project.property('STORE_PASSWORD') : null
-          def keyAlias = project.hasProperty('KEY_ALIAS') ? project.property('KEY_ALIAS') : null
-          def keyPassword = project.hasProperty('KEY_PASSWORD') ? project.property('KEY_PASSWORD') : null
-          
-          if (storeFile && storePassword && keyAlias && keyPassword) {
-              android.signingConfigs.release.storeFile = file(storeFile)
-              android.signingConfigs.release.storePassword = storePassword
-              android.signingConfigs.release.keyAlias = keyAlias
-              android.signingConfigs.release.keyPassword = keyPassword
-              
-              println "Using release signing config from gradle.properties"
-          }
-          EOF
-          
-          # Append the content to build.gradle
-          cat android/app/build.gradle.append >> android/app/build.gradle
+          if [ -n "$SIGNING_CONFIG" ] && [ -f "android/app/app.key" ]; then
+            echo "Configuring release signing..."
+            
+            # Parse SIGNING_CONFIG
+            echo "$SIGNING_CONFIG" | tr ';\r' '\n' | while IFS= read -r line; do
+              if [ -n "$line" ]; then
+                key=$(echo "$line" | cut -d'=' -f1)
+                value=$(echo "$line" | cut -d'=' -f2-)
+                value=$(echo "$value" | sed 's/^"//;s/"$//')
+                
+                case "$key" in
+                  storeFile)
+                    # Replace the storeFile value in build.gradle
+                    sed -i "s|storeFile = null|storeFile = file(\"$value\")|" android/app/build.gradle
+                    ;;
+                  storePassword)
+                    sed -i "s|storePassword = \"\"|storePassword = \"$value\"|" android/app/build.gradle
+                    ;;
+                  keyAlias)
+                    sed -i "s|keyAlias = \"\"|keyAlias = \"$value\"|" android/app/build.gradle
+                    ;;
+                  keyPassword)
+                    sed -i "s|keyPassword = \"\"|keyPassword = \"$value\"|" android/app/build.gradle
+                    ;;
+                esac
+              fi
+            done
+            
+            # Also update signing config in release buildType to use release instead of debug
+            sed -i 's/signingConfig signingConfigs.debug/signingConfig signingConfigs.release/' android/app/build.gradle
+            
+            echo "Signing configured:"
+            grep -A5 "signingConfigs {" android/app/build.gradle
+          else
+            echo "No signing config found, using debug build"
+          fi
           
       - name: Grant execute permission for gradlew
         working-directory: android
@@ -139,12 +115,12 @@ jobs:
       - name: Build APK
         working-directory: android
         run: |
-          # Check if both keystore and signing config exist
-          if [ -f "app/app.key" ] && grep -q "STORE_FILE" "gradle.properties"; then
+          # Check if keystore exists
+          if [ -f "app/app.key" ]; then
             echo "Building release APK with signing config"
             ./gradlew assembleRelease --no-daemon
           else
-            echo "Building debug APK (no valid signing config)"
+            echo "Building debug APK (no keystore)"
             ./gradlew assembleDebug --no-daemon
           fi
           
@@ -167,3 +143,4 @@ jobs:
             android/app/build/outputs/apk/release/*.apk
             android/app/build/outputs/apk/debug/*.apk
           retention-days: 30
+
